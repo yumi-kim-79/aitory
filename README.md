@@ -182,3 +182,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | 구글 로그인 성공 확인, 로그인 후 홈(/) 자동 이동 추가 |
 | 2026-04-04 | signInWithRedirect → signInWithPopup 재전환(Firebase Hosting 없이 redirect 불가), authDomain을 aitory.vercel.app으로 변경 |
 | 2026-04-04 | AI 이력서/자기소개서 생성기 개발 (/resume) - 기본정보/학력/경력/스킬 입력, Claude API 생성, 기존 이력서 개선 기능 |
+| 2026-04-04 | 메인 홈페이지 개편 - 카테고리별 서비스 분류(4개 카테고리), 실시간 검색, 준비중 서비스 5개 추가 |
