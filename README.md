@@ -168,3 +168,5 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | 구글 로그인 COOP 헤더 차단 수정(same-origin-allow-popups), /api/auth/register 401 수정(PRIVATE_KEY \n 처리, Admin SDK 중복 초기화 방지), register 실패해도 로그인 유지 |
 | 2026-04-04 | COOP+COEP 헤더 추가(vercel.json), signInWithPopup→signInWithRedirect 전환, Admin SDK 디버깅 로그 추가, PRIVATE_KEY 쌍따옴표 제거 처리 |
 | 2026-04-04 | register API 호출 제거(/api/auth/me에서 유저 자동 생성으로 통합), AuthContext 단순화, 구글 displayName 자동 저장 |
+| 2026-04-04 | Vercel 자동 배포 확인 - GitHub 연동 정상, .github/workflows 이미 삭제, vercel.json 헤더만 설정 |
+| 2026-04-04 | getRedirectResult 처리 순서 수정 - onAuthStateChanged 전에 await 실행, refreshUser 실패 시 Firebase user fallback 추가 |
