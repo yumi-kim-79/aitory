@@ -243,6 +243,7 @@ export default function InvoicePage() {
 function ResultScreen({ data, onReset }: { data: InvoiceData; onReset: () => void }) {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingWord, setDownloadingWord] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
 
   const download = async (endpoint: string, filename: string, setLoading: (b: boolean) => void) => {
     setLoading(true);
@@ -332,13 +333,26 @@ function ResultScreen({ data, onReset }: { data: InvoiceData; onReset: () => voi
           <p className="text-right text-sm font-medium text-slate-900">{data.sender.companyName} <span className="text-blue-600">(인)</span></p>
         </div>
 
-        {/* 다운로드 */}
+        {/* 다운로드 + 이메일 */}
         <div className="flex gap-3 mt-6">
           <button onClick={() => download("/api/invoice/download-pdf", `${data.docType}.pdf`, setDownloadingPdf)} disabled={downloadingPdf} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 disabled:bg-slate-400 transition-colors flex items-center justify-center gap-2">
-            {downloadingPdf ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />생성 중...</> : <>PDF 다운로드<span className="text-xs bg-white/20 px-2 py-0.5 rounded">2 크레딧</span></>}
+            {downloadingPdf ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />생성 중...</> : <>PDF<span className="text-xs bg-white/20 px-2 py-0.5 rounded">2</span></>}
           </button>
           <button onClick={() => download("/api/invoice/download-word", `${data.docType}.docx`, setDownloadingWord)} disabled={downloadingWord} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:bg-blue-300 transition-colors flex items-center justify-center gap-2">
-            {downloadingWord ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />생성 중...</> : <>Word 다운로드<span className="text-xs bg-white/20 px-2 py-0.5 rounded">1 크레딧</span></>}
+            {downloadingWord ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />생성 중...</> : <>Word<span className="text-xs bg-white/20 px-2 py-0.5 rounded">1</span></>}
+          </button>
+          <button onClick={async () => {
+            setSendingEmail(true);
+            try {
+              const res = await fetch("/api/invoice/send-email", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ senderName: data.sender.companyName, clientName: data.client.clientName, clientEmail: data.client.email, total: data.total, docType: data.docType }),
+              });
+              const d = await res.json();
+              if (d.mailto) window.open(d.mailto, "_blank");
+            } catch {} finally { setSendingEmail(false); }
+          }} disabled={sendingEmail || !data.client.email} className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 disabled:bg-emerald-300 transition-colors flex items-center justify-center gap-2">
+            {sendingEmail ? "준비 중..." : <>이메일<span className="text-xs bg-white/20 px-2 py-0.5 rounded">2</span></>}
           </button>
         </div>
       </div>
