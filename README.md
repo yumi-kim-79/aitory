@@ -132,3 +132,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | 배포 에러 근본 수정 - CI에서 Linux 바이너리 강제 설치 (tailwindcss/oxide + lightningcss) |
 | 2026-04-04 | Firebase deploy --force 옵션 추가 |
 | 2026-04-04 | 워크플로우 복구 - 잘못된 target/deployOpts 제거, 기본 액션으로 복원 |
+| 2026-04-04 | 로그인 후 리다이렉트 수정 - /api/auth/me에서 유저 문서 자동 생성, router.refresh 추가 |

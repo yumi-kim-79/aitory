@@ -27,6 +27,7 @@ export default function SignupPage() {
     try {
       await signUp(email, password, name);
       router.push("/");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "회원가입 실패");
     } finally {
@@ -38,6 +39,7 @@ export default function SignupPage() {
     try {
       await signInWithGoogle();
       router.push("/");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "구글 로그인 실패");
     }

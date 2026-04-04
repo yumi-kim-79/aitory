@@ -20,6 +20,7 @@ export default function SigninPage() {
     try {
       await signIn(email, password);
       router.push("/");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "로그인 실패");
     } finally {
@@ -31,6 +32,7 @@ export default function SigninPage() {
     try {
       await signInWithGoogle();
       router.push("/");
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "구글 로그인 실패");
     }
