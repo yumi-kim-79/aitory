@@ -131,3 +131,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | 배포 에러 3차 수정 - NEXT_BUNDLER=webpack으로 Turbopack 우회, lightningcss 옵션 의존성 |
 | 2026-04-04 | 배포 에러 근본 수정 - CI에서 Linux 바이너리 강제 설치 (tailwindcss/oxide + lightningcss) |
 | 2026-04-04 | Firebase deploy --force 옵션 추가 |
+| 2026-04-04 | 워크플로우 복구 - 잘못된 target/deployOpts 제거, 기본 액션으로 복원 |
