@@ -127,3 +127,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | Firebase 완전 마이그레이션 - Prisma 제거, Firebase Auth+Firestore+Hosting, 구글 소셜 로그인 |
 | 2026-04-04 | Firestore 컬렉션 aitory_ 접두사 분리 - 마이클라우드 기존 데이터 보호 |
 | 2026-04-04 | Firebase 배포 에러 수정 - sharp 0.33.5 다운그레이드, .npmrc legacy-peer-deps, CI 수정 |
+| 2026-04-04 | 배포 에러 2차 수정 - lightningcss 호환성, CI 워크플로우 빌드+환경변수 추가 |
