@@ -71,6 +71,13 @@ const services = [
     description: "회의 내용을 자동으로 정리하고 액션 아이템을 추출합니다",
     available: true,
   },
+  {
+    href: "/resume",
+    icon: "📑",
+    title: "AI 이력서/자기소개서",
+    description: "지원 직무에 최적화된 이력서와 자기소개서를 AI가 작성합니다",
+    available: true,
+  },
 ];
 
 export default function Home() {

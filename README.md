@@ -29,7 +29,7 @@ AI가 당신의 업무를 대신하는 플랫폼
 ### 주요 라우트
 / | /contract | /review | /sns | /realestate | /store | /receipt | /receipt/history
 /translate | /invoice | /invoice/history | /business-card | /business-card/scan
-/meeting | /meeting/history | /auth/signin | /auth/signup | /pricing | /mypage
+/meeting | /meeting/history | /resume | /auth/signin | /auth/signup | /pricing | /mypage
 
 ### 개발 원칙 및 주의사항
 - Firestore 컬렉션은 반드시 aitory_ 접두사 사용
@@ -181,3 +181,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | 배포 프로세스 확립 - npx vercel --prod 명령어로 직접 배포, git push 자동 배포 불안정 |
 | 2026-04-04 | 구글 로그인 성공 확인, 로그인 후 홈(/) 자동 이동 추가 |
 | 2026-04-04 | signInWithRedirect → signInWithPopup 재전환(Firebase Hosting 없이 redirect 불가), authDomain을 aitory.vercel.app으로 변경 |
+| 2026-04-04 | AI 이력서/자기소개서 생성기 개발 (/resume) - 기본정보/학력/경력/스킬 입력, Claude API 생성, 기존 이력서 개선 기능 |
