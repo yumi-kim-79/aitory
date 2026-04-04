@@ -180,3 +180,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | getRedirectResult 처리 순서 수정 - onAuthStateChanged 전에 await 실행, refreshUser 실패 시 Firebase user fallback 추가 |
 | 2026-04-04 | 배포 프로세스 확립 - npx vercel --prod 명령어로 직접 배포, git push 자동 배포 불안정 |
 | 2026-04-04 | 구글 로그인 성공 확인, 로그인 후 홈(/) 자동 이동 추가 |
+| 2026-04-04 | signInWithRedirect → signInWithPopup 재전환(Firebase Hosting 없이 redirect 불가), authDomain을 aitory.vercel.app으로 변경 |
