@@ -3,6 +3,36 @@
 ## 서비스 개요
 AI가 당신의 업무를 대신하는 플랫폼
 
+## Claude Code 기본 컨텍스트 (새 세션 시작 시 이 파일 먼저 읽기)
+
+### 프로젝트
+- 서비스명: Aitory - AI 업무 자동화 플랫폼
+- 스택: Next.js App Router + TailwindCSS + Firebase Auth + Firestore + Claude API (claude-sonnet-4-20250514)
+- 배포: Vercel
+- 패키지: @anthropic-ai/sdk, firebase, firebase-admin, pdf-lib, docx, xlsx, pdf-parse, mammoth, sharp
+
+### Firebase 구조
+- 인증: Firebase Auth (이메일/비밀번호 + 구글 소셜 로그인, signInWithPopup 방식)
+- Auth 상태관리: src/contexts/AuthContext.tsx (AuthProvider + useAuth) — 앱 전체 단일 인스턴스
+- layout.tsx에 `<AuthProvider>` 래핑되어 있음
+- DB: Firestore, 컬렉션 접두사 aitory_ 필수 (마이클라우드 기존 데이터 보호)
+  - aitory_users, aitory_usage_logs, aitory_receipts, aitory_invoices, aitory_meetings, aitory_business_cards
+
+### 주요 라우트
+/ | /contract | /review | /sns | /realestate | /store | /receipt | /receipt/history
+/translate | /invoice | /invoice/history | /business-card | /business-card/scan
+/meeting | /meeting/history | /auth/signin | /auth/signup | /pricing | /mypage
+
+### 개발 원칙 및 주의사항
+- Firestore 컬렉션은 반드시 aitory_ 접두사 사용
+- useAuth import 경로: @/contexts/AuthContext (hooks/useAuth 아님)
+- 파일 업로드 최대 5개, PDF/Word/Excel/이미지 혼합 지원
+- 크레딧 시스템: free/starter/pro 플랜별 제한
+- localStorage는 Firestore(aitory_ 컬렉션) 마이그레이션 예정
+- Firebase 배포 시: sharp 0.33.5 고정, .npmrc legacy-peer-deps, NEXT_BUNDLER=webpack
+- Hydration 에러 방지: 동적 컴포넌트는 dynamic(ssr:false) 또는 suppressHydrationWarning
+- 새 기능 추가 후 반드시 README.md 변경 이력 업데이트
+
 ## 기술 스택
 - Frontend: Next.js + TailwindCSS
 - AI: Claude API
@@ -134,3 +164,5 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | 워크플로우 복구 - 잘못된 target/deployOpts 제거, 기본 액션으로 복원 |
 | 2026-04-04 | 로그인 후 리다이렉트 수정 - /api/auth/me에서 유저 문서 자동 생성, router.refresh 추가 |
 | 2026-04-04 | 구글 로그인 401 수정 - PRIVATE_KEY 줄바꿈 처리 강화, register API 에러 핸들링 개선 |
+| 2026-04-04 | 구글 로그인 후 홈 리다이렉트 시 로그인 상태 미반영 버그 수정 - useAuth 독립 인스턴스 문제, AuthContext로 전환하여 앱 전체 단일 user 상태 공유, layout.tsx에 AuthProvider 래핑, signInWithGoogle 즉시 setUser 반영, router.refresh() 제거 |
+| 2026-04-04 | 구글 로그인 COOP 헤더 차단 수정(same-origin-allow-popups), /api/auth/register 401 수정(PRIVATE_KEY \n 처리, Admin SDK 중복 초기화 방지), register 실패해도 로그인 유지 |
