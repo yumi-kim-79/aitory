@@ -129,3 +129,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | Firebase 배포 에러 수정 - sharp 0.33.5 다운그레이드, .npmrc legacy-peer-deps, CI 수정 |
 | 2026-04-04 | 배포 에러 2차 수정 - lightningcss 호환성, CI 워크플로우 빌드+환경변수 추가 |
 | 2026-04-04 | 배포 에러 3차 수정 - NEXT_BUNDLER=webpack으로 Turbopack 우회, lightningcss 옵션 의존성 |
+| 2026-04-04 | 배포 에러 근본 수정 - CI에서 Linux 바이너리 강제 설치 (tailwindcss/oxide + lightningcss) |
