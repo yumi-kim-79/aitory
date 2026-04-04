@@ -133,3 +133,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | Firebase deploy --force 옵션 추가 |
 | 2026-04-04 | 워크플로우 복구 - 잘못된 target/deployOpts 제거, 기본 액션으로 복원 |
 | 2026-04-04 | 로그인 후 리다이렉트 수정 - /api/auth/me에서 유저 문서 자동 생성, router.refresh 추가 |
+| 2026-04-04 | 구글 로그인 401 수정 - PRIVATE_KEY 줄바꿈 처리 강화, register API 에러 핸들링 개선 |
