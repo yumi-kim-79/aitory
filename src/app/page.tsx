@@ -19,7 +19,7 @@ const services = [
   { href: "/invoice", icon: "📋", title: "AI 견적서/인보이스", description: "전문적인 견적서를 자동으로 생성합니다", available: true, category: "문서작성" as Category },
   { href: "/meeting", icon: "📝", title: "AI 회의록 자동 생성", description: "회의 내용을 자동으로 정리하고 액션 아이템을 추출합니다", available: true, category: "문서작성" as Category },
   { href: "/legal", icon: "⚖️", title: "AI 법률 문서 + 상담", description: "내용증명 등 법률 문서 자동 작성 + AI 법률 상담", available: true, category: "문서작성" as Category },
-  { href: "/labor", icon: "📃", title: "AI 근로계약서", description: "근로조건에 맞는 표준 근로계약서를 자동 생성합니다", available: false, category: "문서작성" as Category },
+  { href: "/labor", icon: "📃", title: "AI 근로계약서", description: "근로조건에 맞는 표준 근로계약서를 자동 생성합니다", available: true, category: "문서작성" as Category },
 
   // 문서 분석
   { href: "/contract", icon: "📄", title: "계약서 검토기", description: "AI가 계약서를 분석해 위험 조항을 찾아드립니다", available: true, category: "문서분석" as Category },
