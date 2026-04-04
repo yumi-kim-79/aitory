@@ -35,7 +35,7 @@ const services = [
   // 비즈니스
   { href: "/realestate", icon: "🏠", title: "부동산 공고문 생성", description: "조건 입력만으로 플랫폼별 공고문을 자동 생성합니다", available: true, category: "비즈니스" as Category },
   { href: "/business-card", icon: "💼", title: "AI 명함 스캐너", description: "명함 사진으로 거래처를 자동으로 관리합니다", available: true, category: "비즈니스" as Category },
-  { href: "/cs", icon: "💬", title: "AI 쇼핑몰 CS 답변", description: "고객 문의에 대한 전문적인 답변을 자동 생성합니다", available: false, category: "비즈니스" as Category },
+  { href: "/cs", icon: "💬", title: "AI 쇼핑몰 CS 답변", description: "고객 문의에 대한 전문적인 답변을 자동 생성합니다", available: true, category: "비즈니스" as Category },
   { href: "/petition", icon: "🏛️", title: "AI 민원서류 작성", description: "민원 내용을 입력하면 공공기관 제출용 서류를 작성합니다", available: false, category: "비즈니스" as Category },
 ];
 
