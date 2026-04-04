@@ -8,8 +8,16 @@ AI가 당신의 업무를 대신하는 플랫폼
 ### 프로젝트
 - 서비스명: Aitory - AI 업무 자동화 플랫폼
 - 스택: Next.js App Router + TailwindCSS + Firebase Auth + Firestore + Claude API (claude-sonnet-4-20250514)
-- 배포: Vercel
 - 패키지: @anthropic-ai/sdk, firebase, firebase-admin, pdf-lib, docx, xlsx, pdf-parse, mammoth, sharp
+
+### 배포
+- 플랫폼: Vercel
+- 배포 명령어: `npx vercel --prod` (반드시 이 명령어 사용, git push만으로는 자동 배포 안 될 수 있음)
+- 배포 순서:
+  1. `git add . && git commit -m "메시지"`
+  2. `git push origin main`
+  3. `npx vercel --prod`
+  4. 배포 완료 확인
 
 ### Firebase 구조
 - 인증: Firebase Auth (이메일/비밀번호 + 구글 소셜 로그인, signInWithPopup 방식)
@@ -170,3 +178,5 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | register API 호출 제거(/api/auth/me에서 유저 자동 생성으로 통합), AuthContext 단순화, 구글 displayName 자동 저장 |
 | 2026-04-04 | Vercel 자동 배포 확인 - GitHub 연동 정상, .github/workflows 이미 삭제, vercel.json 헤더만 설정 |
 | 2026-04-04 | getRedirectResult 처리 순서 수정 - onAuthStateChanged 전에 await 실행, refreshUser 실패 시 Firebase user fallback 추가 |
+| 2026-04-04 | 배포 프로세스 확립 - npx vercel --prod 명령어로 직접 배포, git push 자동 배포 불안정 |
+| 2026-04-04 | 구글 로그인 성공 확인, 로그인 후 홈(/) 자동 이동 추가 |

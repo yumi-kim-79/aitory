@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function SignupPage() {
   const router = useRouter();
-  const { signUp, signInWithGoogle } = useAuth();
+  const { user, signUp, signInWithGoogle } = useAuth();
+
+  useEffect(() => {
+    if (user) router.push("/");
+  }, [user, router]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
