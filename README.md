@@ -166,3 +166,5 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | 구글 로그인 401 수정 - PRIVATE_KEY 줄바꿈 처리 강화, register API 에러 핸들링 개선 |
 | 2026-04-04 | 구글 로그인 후 홈 리다이렉트 시 로그인 상태 미반영 버그 수정 - useAuth 독립 인스턴스 문제, AuthContext로 전환하여 앱 전체 단일 user 상태 공유, layout.tsx에 AuthProvider 래핑, signInWithGoogle 즉시 setUser 반영, router.refresh() 제거 |
 | 2026-04-04 | 구글 로그인 COOP 헤더 차단 수정(same-origin-allow-popups), /api/auth/register 401 수정(PRIVATE_KEY \n 처리, Admin SDK 중복 초기화 방지), register 실패해도 로그인 유지 |
+| 2026-04-04 | COOP+COEP 헤더 추가(vercel.json), signInWithPopup→signInWithRedirect 전환, Admin SDK 디버깅 로그 추가, PRIVATE_KEY 쌍따옴표 제거 처리 |
+| 2026-04-04 | register API 호출 제거(/api/auth/me에서 유저 자동 생성으로 통합), AuthContext 단순화, 구글 displayName 자동 저장 |

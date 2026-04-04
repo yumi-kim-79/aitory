@@ -30,7 +30,7 @@ export default function SigninPage() {
   const handleGoogle = async () => {
     try {
       await signInWithGoogle();
-      router.push("/");
+      // redirect 방식이라 페이지가 자동 리로드됨
     } catch (err) {
       setError(err instanceof Error ? err.message : "구글 로그인 실패");
     }

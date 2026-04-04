@@ -37,7 +37,6 @@ export default function SignupPage() {
   const handleGoogle = async () => {
     try {
       await signInWithGoogle();
-      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "구글 로그인 실패");
     }

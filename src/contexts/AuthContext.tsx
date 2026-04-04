@@ -14,7 +14,8 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   type User as FirebaseUser,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -40,7 +41,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-async function fetchWithToken(url: string, fbUser: FirebaseUser, options?: RequestInit) {
+async function fetchWithToken(
+  url: string,
+  fbUser: FirebaseUser,
+  options?: RequestInit,
+) {
   const token = await fbUser.getIdToken();
   return fetch(url, {
     ...options,
@@ -56,24 +61,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
 
+  // /api/auth/me 호출 → 유저 문서 없으면 자동 생성됨 (ensureUserDoc)
   const refreshUser = useCallback(async (fbUser: FirebaseUser) => {
     try {
       const res = await fetchWithToken("/api/auth/me", fbUser);
       const data = await res.json();
-      if (data.user) {
-        setUser(data.user);
-      }
+      if (data.user) setUser(data.user);
     } catch {
       // API 실패해도 Firebase Auth 상태는 유지
     }
   }, []);
 
-  // onAuthStateChanged — 앱 전체에서 1번만 등록
   useEffect(() => {
     if (!auth) {
       setLoading(false);
       return;
     }
+
+    // 구글 redirect 로그인 결과 처리
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result?.user) {
+          setFirebaseUser(result.user);
+          await refreshUser(result.user);
+        }
+      })
+      .catch((e) => {
+        console.error("getRedirectResult 에러:", e);
+      });
+
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
@@ -89,15 +105,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = useCallback(
     async (email: string, password: string, name: string) => {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
-      try {
-        await fetchWithToken("/api/auth/register", cred.user, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
-        });
-      } catch (e) {
-        console.error("register 실패, 로그인은 유지:", e);
-      }
+      // /api/auth/me 호출 시 유저 문서 자동 생성됨
+      // name은 별도 업데이트 필요하면 추후 구현
       setFirebaseUser(cred.user);
       await refreshUser(cred.user);
     },
@@ -107,29 +116,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(
     async (email: string, password: string) => {
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      await refreshUser(cred.user);
       setFirebaseUser(cred.user);
+      await refreshUser(cred.user);
     },
     [refreshUser],
   );
 
   const handleGoogleSignIn = useCallback(async () => {
     const provider = new GoogleAuthProvider();
-    const cred = await signInWithPopup(auth, provider);
-    // register 실패해도 로그인 상태는 유지
-    try {
-      await fetchWithToken("/api/auth/register", cred.user, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: cred.user.displayName || "" }),
-      });
-    } catch (e) {
-      console.error("register 실패, 로그인은 유지:", e);
-    }
-    // 즉시 user 상태 반영 (onAuthStateChanged를 기다리지 않음)
-    setFirebaseUser(cred.user);
-    await refreshUser(cred.user);
-  }, [refreshUser]);
+    await signInWithRedirect(auth, provider);
+  }, []);
 
   const handleSignOut = useCallback(async () => {
     await firebaseSignOut(auth);
