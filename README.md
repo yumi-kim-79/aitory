@@ -196,3 +196,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-05 | menu btoa 한글 에러 근본 원인 수정 - Vercel ANTHROPIC_API_KEY 환경변수에 한글(유니코드 50668='여') 섞여 Anthropic SDK Authorization 헤더 ByteString 변환 실패, printf로 재등록 |
 | 2026-04-05 | /receipt 영수증 업로드 버그 수정 - 파일 크기 4MB 제한, HEIC 차단 및 안내, 에러 메시지 구체화, API 디버그 로그 |
 | 2026-04-05 | /receipt 영수증 업로드 실제 원인 수정 - FormData→JSON(base64) 전환, 삭제 버튼 stopPropagation, 브라우저 콘솔 로깅 |
+| 2026-04-05 | 영수증 분석 항목명 OCR 오인식 교정, 표준 용어로 변환 (불기시→부가세, 탈계→합계 등) |
