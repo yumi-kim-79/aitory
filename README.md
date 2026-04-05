@@ -203,3 +203,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-05 | 영수증 분석 결과 인라인 편집 기능 추가 - 가게명/날짜/시간/항목/금액 직접 수정, 합계 자동 재계산, 항목 추가/삭제, 수정 필드 파란색 표시 |
 | 2026-04-06 | 실시간 트렌드 뉴스 수집기 개발 (/trend) - Google Trends RSS, Claude web_search 뉴스 수집, AI 요약 + SNS 콘텐츠 생성 |
 | 2026-04-06 | 트렌드 + Kbuzz 자동 포스팅 (/trend) - 관리자 전용 WP 포스팅(role:admin), AuthContext role 필드, 3탭 구조 |
+| 2026-04-06 | aitory_users 자동 생성 버그 수정(에러 로깅 추가), 관리자 계정 설정 스크립트(scripts/set-admin.mjs) |

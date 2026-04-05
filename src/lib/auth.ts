@@ -1,18 +1,26 @@
 import { adminDb } from "./firebase-admin";
 
 export async function ensureUserDoc(userId: string, email: string, name?: string) {
-  const ref = adminDb.collection("aitory_users").doc(userId);
-  const doc = await ref.get();
-  if (!doc.exists) {
-    await ref.set({
-      email,
-      name: name || "",
-      plan: "free",
-      credits: 10,
-      createdAt: new Date(),
-    });
+  try {
+    const ref = adminDb.collection("aitory_users").doc(userId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      console.log("[auth] aitory_users 문서 생성:", userId, email);
+      await ref.set({
+        email,
+        name: name || "",
+        role: "user",
+        plan: "free",
+        credits: 10,
+        createdAt: new Date(),
+      });
+      console.log("[auth] 문서 생성 완료");
+    }
+    return (await ref.get()).data()!;
+  } catch (error) {
+    console.error("[auth] ensureUserDoc 에러:", error instanceof Error ? error.message : error);
+    return null;
   }
-  return (await ref.get()).data()!;
 }
 
 export async function getUserDoc(userId: string) {
