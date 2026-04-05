@@ -31,6 +31,7 @@ const services = [
   { href: "/sns", icon: "📱", title: "SNS 콘텐츠 재가공", description: "블로그/영상 콘텐츠를 SNS용으로 자동 변환합니다", available: true, category: "마케팅" as Category },
   { href: "/store", icon: "🛒", title: "스마트스토어 상품등록", description: "상품 정보를 입력하면 플랫폼별 등록 문구를 자동 생성합니다", available: true, category: "마케팅" as Category },
   { href: "/menu", icon: "🍽️", title: "AI 식당 메뉴판", description: "메뉴 정보를 입력하면 매력적인 메뉴판을 자동 생성합니다", available: true, category: "마케팅" as Category },
+  { href: "/trend", icon: "🔥", title: "실시간 트렌드 뉴스", description: "실시간 트렌드 키워드로 AI 요약 + SNS 콘텐츠를 자동 생성합니다", available: true, category: "마케팅" as Category },
 
   // 비즈니스
   { href: "/realestate", icon: "🏠", title: "부동산 공고문 생성", description: "조건 입력만으로 플랫폼별 공고문을 자동 생성합니다", available: true, category: "비즈니스" as Category },
