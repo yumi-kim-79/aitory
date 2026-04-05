@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import {
@@ -126,12 +127,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [refreshUser],
   );
 
+  const signingInRef = useRef(false);
+
   const handleGoogleSignIn = useCallback(async () => {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: "select_account" });
-    const result = await signInWithPopup(auth, provider);
-    setFirebaseUser(result.user);
-    await refreshUser(result.user);
+    if (signingInRef.current) return;
+    signingInRef.current = true;
+
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      const result = await signInWithPopup(auth, provider);
+      setFirebaseUser(result.user);
+      await refreshUser(result.user);
+    } catch (error: unknown) {
+      const code = (error as { code?: string }).code;
+      if (code === "auth/cancelled-popup-request" || code === "auth/popup-closed-by-user") {
+        console.log("[auth] 팝업 취소/닫힘:", code);
+        return;
+      }
+      throw error;
+    } finally {
+      signingInRef.current = false;
+    }
   }, [refreshUser]);
 
   const handleSignOut = useCallback(async () => {
