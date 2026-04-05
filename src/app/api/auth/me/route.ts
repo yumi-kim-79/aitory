@@ -20,6 +20,7 @@ export async function GET(request: Request) {
       name: data.name || decoded.name || "",
       plan: data.plan || "free",
       credits: data.credits ?? 10,
+      role: data.role || "user",
     },
   });
 }

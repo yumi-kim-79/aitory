@@ -26,6 +26,7 @@ export interface UserInfo {
   name: string;
   plan: string;
   credits: number;
+  role?: string;
 }
 
 interface AuthContextType {

@@ -18,6 +18,6 @@ export async function ensureUserDoc(userId: string, email: string, name?: string
 export async function getUserDoc(userId: string) {
   const doc = await adminDb.collection("aitory_users").doc(userId).get();
   if (!doc.exists) return null;
-  const data = doc.data() as { email?: string; name?: string; plan?: string; credits?: number };
+  const data = doc.data() as { email?: string; name?: string; plan?: string; credits?: number; role?: string };
   return { id: doc.id, ...data };
 }
