@@ -25,6 +25,7 @@ const CATEGORIES = [
 
 interface AnalyzeResult {
   store_name: string;
+  store_name_confidence?: "high" | "low";
   date: string;
   time: string;
   items: { name: string; price: number }[];
@@ -201,26 +202,35 @@ export default function ReceiptPage() {
           </div>
 
           {/* 영수증 정보 */}
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-6">
-            {(() => {
-              const sn = (result.store_name || "").trim();
-              const uncertain =
-                !sn ||
-                /알 수 없음|불명확|미확인|unknown|항목\d*/i.test(sn) ||
-                sn.length < 2;
-              return uncertain ? (
-                <div className="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                  <p className="text-xs text-amber-700">
-                    ⚠️ 가게명 인식이 불확실합니다. 영수증을 더 선명하게 촬영해서 다시 올려주세요.
-                  </p>
-                </div>
-              ) : null;
-            })()}
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-slate-900">
-                {result.store_name || "가게명 미확인"}
-              </h2>
-              <span className="text-sm text-slate-500">
+          {(() => {
+            const sn = (result.store_name || "").trim();
+            const emptyOrInvalid =
+              !sn ||
+              /알 수 없음|불명확|미확인|unknown|항목\d*/i.test(sn) ||
+              sn.length < 2;
+            const lowConfidence =
+              emptyOrInvalid || result.store_name_confidence === "low";
+            return (
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-6">
+                {lowConfidence && (
+                  <div className="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <p className="text-xs text-amber-700">
+                      ⚠️ 가게명 인식이 불확실합니다. 영수증을 더 선명하게 촬영해서 다시 올려주세요.
+                    </p>
+                  </div>
+                )}
+                <div className="flex items-center justify-between mb-4 gap-3">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <h2 className="text-xl font-semibold text-slate-900 truncate">
+                      {result.store_name || "가게명 미확인"}
+                    </h2>
+                    {lowConfidence && (
+                      <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+                        ⚠️ 인식 불확실
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-sm text-slate-500 shrink-0">
                 {result.date}
                 {result.time ? ` ${result.time}` : ""}
               </span>
@@ -292,7 +302,9 @@ export default function ReceiptPage() {
             >
               {saved ? "저장 완료 ✓" : "가계부에 저장"}
             </button>
-          </div>
+              </div>
+            );
+          })()}
 
           {/* 재촬영 안내 */}
           <div className="mb-6">

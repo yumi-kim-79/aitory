@@ -89,7 +89,9 @@ export async function POST(request: Request) {
 
 [반드시 할 것]
 - 영수증에 실제로 인쇄된 항목만 추출
-- 가게명: 영수증 상단에 있는 실제 가맹점/가게명 그대로
+- 가게명: 영수증 상단의 "가맹점:", "상호:", "상호명:" 레이블 옆에 있는 텍스트를 최대한 정확하게 읽어주세요.
+  글씨가 흐리거나 불명확한 경우 가장 유사한 한국어 단어로 추정하되, 확실하지 않으면 원본 텍스트 그대로 반환하세요.
+  가게명이 완벽하게 선명하면 storeNameConfidence를 "high"로, 흐리거나 일부 글자가 애매하면 "low"로 설정하세요.
 - 금액 항목: 영수증에 표시된 실제 항목명과 금액 그대로
   (공급가액/금액, 부가세/부가가치세, 합계/총액 등)
 - 날짜/시간: 영수증에 적힌 거래일시 그대로
@@ -106,6 +108,7 @@ export async function POST(request: Request) {
 정상 응답:
 {
   "store_name": "실제 가맹점명",
+  "store_name_confidence": "high|low",
   "date": "YYYY-MM-DD",
   "time": "HH:MM",
   "items": [
