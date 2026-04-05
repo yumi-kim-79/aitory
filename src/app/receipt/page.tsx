@@ -202,9 +202,23 @@ export default function ReceiptPage() {
 
           {/* 영수증 정보 */}
           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-6">
+            {(() => {
+              const sn = (result.store_name || "").trim();
+              const uncertain =
+                !sn ||
+                /알 수 없음|불명확|미확인|unknown|항목\d*/i.test(sn) ||
+                sn.length < 2;
+              return uncertain ? (
+                <div className="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                  <p className="text-xs text-amber-700">
+                    ⚠️ 가게명 인식이 불확실합니다. 영수증을 더 선명하게 촬영해서 다시 올려주세요.
+                  </p>
+                </div>
+              ) : null;
+            })()}
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-slate-900">
-                {result.store_name}
+                {result.store_name || "가게명 미확인"}
               </h2>
               <span className="text-sm text-slate-500">
                 {result.date}
@@ -277,6 +291,22 @@ export default function ReceiptPage() {
               }`}
             >
               {saved ? "저장 완료 ✓" : "가계부에 저장"}
+            </button>
+          </div>
+
+          {/* 재촬영 안내 */}
+          <div className="mb-6">
+            <button
+              onClick={() => {
+                setResult(null);
+                setFiles([]);
+                setSaved(false);
+                setMemo("");
+                setError("");
+              }}
+              className="w-full py-3 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl font-medium hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
+            >
+              📷 인식이 잘못됐나요? 다시 선명하게 찍어서 올리기
             </button>
           </div>
 
@@ -476,6 +506,16 @@ export default function ReceiptPage() {
                     </p>
                   </>
                 )}
+              </div>
+
+              {/* 촬영 가이드 */}
+              <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-xs text-blue-800 font-medium mb-1">📷 영수증이 선명하게 보이도록 촬영해주세요</p>
+                <ul className="text-xs text-blue-700 space-y-0.5">
+                  <li>• 글씨가 흐리거나 기울어지면 인식 오류가 생길 수 있어요</li>
+                  <li>• 4MB 이하 JPG, PNG 형식을 권장합니다</li>
+                  <li>• 전체가 프레임 안에 들어오도록 촬영해주세요</li>
+                </ul>
               </div>
             </>
           )}
