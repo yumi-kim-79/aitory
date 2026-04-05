@@ -192,3 +192,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | AI 부동산 계약서 체크리스트 개발 (/realestate/check) - 매매/전세/월세, 위험도 점수, 체크항목 |
 | 2026-04-04 | AI 민원서류 작성기 개발 (/petition) - 5종 민원, 공공기관 표준 양식, 3단계 UI |
 | 2026-04-05 | 전체 API pdf-lib 한글 에러 일괄 수정 - PDF 생성 API 제거(/api/generate-pdf, /api/invoice/download-pdf), Word(.docx) 다운로드로 통일 |
+| 2026-04-05 | /menu pdf-lib 한글 에러 근본 수정 - API에서 PDF 완전 제거, /api/menu/download-docx 추가, Word 다운로드로 전환 |

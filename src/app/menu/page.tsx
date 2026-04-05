@@ -54,7 +54,7 @@ export default function MenuPage() {
     </div>
   );
 
-  if (result) return <ResultScreen result={result} onReset={() => setResult(null)} />;
+  if (result) return <ResultScreen result={result} storeName={storeName} onReset={() => setResult(null)} />;
 
   return (
     <div className="flex flex-col flex-1 items-center px-4 py-16">
@@ -111,10 +111,30 @@ export default function MenuPage() {
   );
 }
 
-function ResultScreen({ result, onReset }: { result: MenuResult; onReset: () => void }) {
+function ResultScreen({ result, storeName, onReset }: { result: MenuResult; storeName: string; onReset: () => void }) {
   const [activeTab, setActiveTab] = useState(result.platforms[0]?.platform || "");
   const [copied, setCopied] = useState(false);
+  const [downloadingDocx, setDownloadingDocx] = useState(false);
   const active = result.platforms.find((p) => p.platform === activeTab);
+
+  const handleDownloadDocx = async () => {
+    setDownloadingDocx(true);
+    try {
+      const res = await fetch("/api/menu/download-docx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storeName, platforms: result.platforms }),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "menu.docx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {} finally { setDownloadingDocx(false); }
+  };
 
   const handleCopyAll = async () => {
     if (!active) return;
@@ -137,8 +157,11 @@ function ResultScreen({ result, onReset }: { result: MenuResult; onReset: () => 
 
         {active && (
           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
-            <div className="flex justify-end mb-4">
+            <div className="flex justify-end gap-2 mb-4">
               <button onClick={handleCopyAll} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-200">{copied ? "전체 복사됨!" : "전체 복사"}</button>
+              <button onClick={handleDownloadDocx} disabled={downloadingDocx} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:bg-blue-300 flex items-center gap-2">
+                {downloadingDocx ? "생성 중..." : <>Word 다운로드<span className="text-xs bg-white/20 px-1.5 py-0.5 rounded">1</span></>}
+              </button>
             </div>
             <div className="divide-y divide-slate-100">
               {active.menus.map((m, i) => (
