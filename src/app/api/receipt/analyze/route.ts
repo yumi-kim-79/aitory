@@ -19,38 +19,60 @@ function extractJSON(text: string): string {
   return text.trim();
 }
 
+interface ImageInput {
+  name: string;
+  ext: string;
+  base64: string;
+}
+
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     console.log("[receipt] 영수증 분석 시작");
-    const formData = await request.formData();
-    const files = formData.getAll("files") as File[];
 
-    if (files.length === 0) {
-      console.log("[receipt] 파일 없음");
+    // JSON body 우선, FormData fallback
+    const contentType = request.headers.get("content-type") || "";
+    let images: ImageInput[] = [];
+
+    if (contentType.includes("application/json")) {
+      const body = (await request.json()) as { images?: ImageInput[] };
+      images = body.images || [];
+      console.log(`[receipt] JSON 방식: ${images.length}개`);
+    } else if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const files = formData.getAll("files") as File[];
+      console.log(`[receipt] FormData 방식: ${files.length}개`);
+      for (const f of files) {
+        const buffer = Buffer.from(await f.arrayBuffer());
+        const ext = f.name.split(".").pop()?.toLowerCase() || "jpg";
+        images.push({
+          name: f.name,
+          ext,
+          base64: buffer.toString("base64"),
+        });
+      }
+    }
+
+    if (images.length === 0) {
+      console.log("[receipt] 이미지 없음");
       return Response.json(
         { error: "영수증 이미지를 업로드해주세요." },
         { status: 400 },
       );
     }
 
-    console.log(`[receipt] 이미지 수신: ${files.length}개`);
-    for (const f of files) {
-      console.log(`  - ${f.name} (${f.size} bytes, ${f.type})`);
-    }
-
-    // 모든 이미지를 content 배열에 담아 1회 호출
     const content: Anthropic.MessageCreateParams["messages"][0]["content"] = [];
 
-    for (const file of files) {
-      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const mediaType = MEDIA_TYPES[ext] || "image/jpeg";
-      const buffer = Buffer.from(await file.arrayBuffer());
+    for (const img of images) {
+      const mediaType = MEDIA_TYPES[img.ext] || "image/jpeg";
+      console.log(`  - ${img.name} (base64: ${img.base64.length} chars, ${mediaType})`);
       content.push({
         type: "image",
         source: {
           type: "base64",
           media_type: mediaType,
-          data: buffer.toString("base64"),
+          data: img.base64,
         },
       });
     }
@@ -93,7 +115,7 @@ export async function POST(request: Request) {
     try {
       result = JSON.parse(jsonStr);
     } catch {
-      console.error("JSON 파싱 실패:", responseText.slice(0, 300));
+      console.error("[receipt] JSON 파싱 실패:", responseText.slice(0, 300));
       return Response.json(
         { error: "영수증을 인식할 수 없습니다. 더 선명한 이미지를 사용해주세요." },
         { status: 502 },
@@ -103,7 +125,7 @@ export async function POST(request: Request) {
     return Response.json(result);
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 오류";
-    console.error("영수증 분석 오류:", msg);
+    console.error("[receipt] 에러:", msg);
     return Response.json(
       { error: `영수증 분석 중 오류가 발생했습니다: ${msg}` },
       { status: 500 },

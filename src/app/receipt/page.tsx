@@ -69,7 +69,6 @@ export default function ReceiptPage() {
       return;
     }
 
-    // 파일 크기 체크 (Vercel 4.5MB 제한)
     const MAX_SIZE = 4 * 1024 * 1024;
     const totalSize = files.reduce((s, f) => s + f.size, 0);
     if (totalSize > MAX_SIZE) {
@@ -83,13 +82,33 @@ export default function ReceiptPage() {
     setSaved(false);
 
     try {
-      const fd = new FormData();
-      for (const f of files) fd.append("files", f);
+      // 파일을 base64로 변환 (FormData 대신 JSON 사용 — Vercel serverless에서 더 안정적)
+      const images = await Promise.all(
+        files.map(async (f) => {
+          const buffer = await f.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          let binary = "";
+          for (let i = 0; i < bytes.length; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          const base64 = btoa(binary);
+          const ext = f.name.split(".").pop()?.toLowerCase() || "jpg";
+          return { name: f.name, ext, base64 };
+        }),
+      );
+
+      console.log("[receipt] 업로드 시작:", images.length, "개, 총", (totalSize / 1024).toFixed(0), "KB");
+
       const res = await fetch("/api/receipt/analyze", {
         method: "POST",
-        body: fd,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ images }),
       });
-      const data = await res.json();
+
+      console.log("[receipt] 응답:", res.status, res.statusText);
+
+      const data = await res.json().catch(() => ({ error: `응답 파싱 실패 (${res.status})` }));
+
       if (!res.ok) {
         setError(data.error || `분석 실패 (${res.status})`);
       } else {
@@ -97,7 +116,8 @@ export default function ReceiptPage() {
         setEditCategory(data.category || "기타");
       }
     } catch (e) {
-      setError(`서버 연결 실패: ${e instanceof Error ? e.message : "알 수 없음"}`);
+      console.error("[receipt] 업로드 에러:", e);
+      setError(`업로드 실패: ${e instanceof Error ? e.message : "알 수 없음"}`);
     } finally {
       setLoading(false);
     }
@@ -374,9 +394,10 @@ export default function ReceiptPage() {
                         {f.name}
                       </span>
                       <button
-                        onClick={() =>
-                          setFiles(files.filter((_, j) => j !== i))
-                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFiles(files.filter((_, j) => j !== i));
+                        }}
                         className="text-slate-400 hover:text-red-500 text-lg px-1"
                       >
                         &times;
