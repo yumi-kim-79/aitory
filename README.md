@@ -193,3 +193,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-04 | AI 민원서류 작성기 개발 (/petition) - 5종 민원, 공공기관 표준 양식, 3단계 UI |
 | 2026-04-05 | 전체 API pdf-lib 한글 에러 일괄 수정 - PDF 생성 API 제거(/api/generate-pdf, /api/invoice/download-pdf), Word(.docx) 다운로드로 통일 |
 | 2026-04-05 | /menu pdf-lib 한글 에러 근본 수정 - API에서 PDF 완전 제거, /api/menu/download-docx 추가, Word 다운로드로 전환 |
+| 2026-04-05 | menu btoa 한글 에러 근본 원인 수정 - Vercel ANTHROPIC_API_KEY 환경변수에 한글(유니코드 50668='여') 섞여 Anthropic SDK Authorization 헤더 ByteString 변환 실패, printf로 재등록 |
