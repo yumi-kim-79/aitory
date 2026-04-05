@@ -51,7 +51,40 @@ export default function ReceiptPage() {
   const [saved, setSaved] = useState(false);
   const [editCategory, setEditCategory] = useState("");
   const [memo, setMemo] = useState("");
+  const [modifiedFields, setModifiedFields] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const markModified = (field: string) =>
+    setModifiedFields((prev) => new Set(prev).add(field));
+
+  const updateResult = (updates: Partial<AnalyzeResult>) => {
+    setResult((prev) => (prev ? { ...prev, ...updates } : prev));
+  };
+
+  const updateItem = (idx: number, field: "name" | "price", value: string | number) => {
+    setResult((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, items: prev.items.map((it, i) => i === idx ? { ...it, [field]: value } : it) };
+      next.total = next.items.reduce((s, it) => s + (Number(it.price) || 0), 0);
+      return next;
+    });
+    markModified(`item-${idx}-${field}`);
+  };
+
+  const addItem = () => {
+    setResult((prev) => prev ? { ...prev, items: [...prev.items, { name: "새 항목", price: 0 }] } : prev);
+    markModified("items-add");
+  };
+
+  const removeItem = (idx: number) => {
+    setResult((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, items: prev.items.filter((_, i) => i !== idx) };
+      next.total = next.items.reduce((s, it) => s + (Number(it.price) || 0), 0);
+      return next;
+    });
+    markModified("items-remove");
+  };
 
   // 이번달 통계
   const [monthTotal, setMonthTotal] = useState(0);
@@ -194,6 +227,7 @@ export default function ReceiptPage() {
                 setFiles([]);
                 setSaved(false);
                 setMemo("");
+                setModifiedFields(new Set());
               }}
               className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-medium hover:bg-slate-200 transition-colors"
             >
@@ -219,43 +253,81 @@ export default function ReceiptPage() {
                     </p>
                   </div>
                 )}
-                <div className="flex items-center justify-between mb-4 gap-3">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <h2 className="text-xl font-semibold text-slate-900 truncate">
-                      {result.store_name || "가게명 미확인"}
-                    </h2>
-                    {lowConfidence && (
-                      <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
-                        ⚠️ 인식 불확실
-                      </span>
-                    )}
+                <div className="flex items-start justify-between mb-4 gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={result.store_name}
+                        onChange={(e) => { updateResult({ store_name: e.target.value }); markModified("store_name"); }}
+                        className={`text-xl font-semibold bg-transparent border-b border-transparent hover:border-slate-200 focus:border-blue-400 focus:outline-none py-0.5 flex-1 min-w-0 ${modifiedFields.has("store_name") ? "text-blue-600" : "text-slate-900"}`}
+                      />
+                      {lowConfidence && (
+                        <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+                          ⚠️ 인식 불확실
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-sm text-slate-500 shrink-0">
-                {result.date}
-                {result.time ? ` ${result.time}` : ""}
-              </span>
-            </div>
+                </div>
 
-            <div className="divide-y divide-slate-100">
-              {result.items.map((item, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between py-2.5"
+                <div className="flex gap-2 mb-4 text-sm text-slate-500">
+                  <input
+                    type="date"
+                    value={result.date}
+                    onChange={(e) => { updateResult({ date: e.target.value }); markModified("date"); }}
+                    className={`border-b border-transparent hover:border-slate-200 focus:border-blue-400 focus:outline-none bg-transparent ${modifiedFields.has("date") ? "text-blue-600" : ""}`}
+                  />
+                  <input
+                    type="time"
+                    value={result.time}
+                    onChange={(e) => { updateResult({ time: e.target.value }); markModified("time"); }}
+                    className={`border-b border-transparent hover:border-slate-200 focus:border-blue-400 focus:outline-none bg-transparent ${modifiedFields.has("time") ? "text-blue-600" : ""}`}
+                  />
+                </div>
+
+                <div className="divide-y divide-slate-100">
+                  {result.items.map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 py-2.5 group">
+                      <input
+                        type="text"
+                        value={item.name}
+                        onChange={(e) => updateItem(i, "name", e.target.value)}
+                        className={`text-sm flex-1 bg-transparent border-b border-transparent hover:border-slate-200 focus:border-blue-400 focus:outline-none py-0.5 ${modifiedFields.has(`item-${i}-name`) ? "text-blue-600" : "text-slate-700"}`}
+                      />
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          value={item.price}
+                          onChange={(e) => updateItem(i, "price", Number(e.target.value) || 0)}
+                          className={`text-sm font-medium w-24 text-right bg-transparent border-b border-transparent hover:border-slate-200 focus:border-blue-400 focus:outline-none py-0.5 ${modifiedFields.has(`item-${i}-price`) ? "text-blue-600" : "text-slate-900"}`}
+                        />
+                        <span className="text-sm text-slate-500">원</span>
+                      </div>
+                      <button
+                        onClick={() => removeItem(i)}
+                        className="text-slate-300 hover:text-red-500 text-sm px-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label="항목 삭제"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={addItem}
+                  className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
                 >
-                  <span className="text-sm text-slate-700">{item.name}</span>
-                  <span className="text-sm font-medium text-slate-900">
-                    {item.price.toLocaleString()}원
+                  + 항목 추가
+                </button>
+
+                <div className="flex items-center justify-between pt-4 mt-2 border-t-2 border-slate-900">
+                  <span className="font-semibold text-slate-900">합계</span>
+                  <span className="text-xl font-bold text-slate-900">
+                    {result.total.toLocaleString()}원
                   </span>
                 </div>
-              ))}
-            </div>
-
-            <div className="flex items-center justify-between pt-4 mt-2 border-t-2 border-slate-900">
-              <span className="font-semibold text-slate-900">합계</span>
-              <span className="text-xl font-bold text-slate-900">
-                {result.total.toLocaleString()}원
-              </span>
-            </div>
 
             {/* 카테고리 */}
             <div className="mt-6">
@@ -314,6 +386,7 @@ export default function ReceiptPage() {
                 setFiles([]);
                 setSaved(false);
                 setMemo("");
+                setModifiedFields(new Set());
                 setError("");
               }}
               className="w-full py-3 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl font-medium hover:bg-amber-100 transition-colors flex items-center justify-center gap-2"
