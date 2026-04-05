@@ -21,14 +21,21 @@ function extractJSON(text: string): string {
 
 export async function POST(request: Request) {
   try {
+    console.log("[receipt] 영수증 분석 시작");
     const formData = await request.formData();
     const files = formData.getAll("files") as File[];
 
     if (files.length === 0) {
+      console.log("[receipt] 파일 없음");
       return Response.json(
         { error: "영수증 이미지를 업로드해주세요." },
         { status: 400 },
       );
+    }
+
+    console.log(`[receipt] 이미지 수신: ${files.length}개`);
+    for (const f of files) {
+      console.log(`  - ${f.name} (${f.size} bytes, ${f.type})`);
     }
 
     // 모든 이미지를 content 배열에 담아 1회 호출
@@ -70,11 +77,13 @@ export async function POST(request: Request) {
 카테고리는 가게 업종에 맞게 자동 분류하세요.`,
     });
 
+    console.log("[receipt] Claude Vision API 호출");
     const message = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 2000,
       messages: [{ role: "user", content }],
     });
+    console.log("[receipt] 분석 완료");
 
     const responseText =
       message.content[0].type === "text" ? message.content[0].text : "";

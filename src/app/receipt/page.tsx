@@ -68,6 +68,15 @@ export default function ReceiptPage() {
       setError("영수증 이미지를 업로드해주세요.");
       return;
     }
+
+    // 파일 크기 체크 (Vercel 4.5MB 제한)
+    const MAX_SIZE = 4 * 1024 * 1024;
+    const totalSize = files.reduce((s, f) => s + f.size, 0);
+    if (totalSize > MAX_SIZE) {
+      setError(`파일이 너무 큽니다 (${(totalSize / 1024 / 1024).toFixed(1)}MB). 4MB 이하로 압축해주세요.`);
+      return;
+    }
+
     setError("");
     setLoading(true);
     setResult(null);
@@ -82,13 +91,13 @@ export default function ReceiptPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || "분석 중 오류가 발생했습니다.");
+        setError(data.error || `분석 실패 (${res.status})`);
       } else {
         setResult(data);
         setEditCategory(data.category || "기타");
       }
-    } catch {
-      setError("서버 연결에 실패했습니다.");
+    } catch (e) {
+      setError(`서버 연결 실패: ${e instanceof Error ? e.message : "알 수 없음"}`);
     } finally {
       setLoading(false);
     }
@@ -386,9 +395,18 @@ export default function ReceiptPage() {
                 onDrop={(e) => {
                   e.preventDefault();
                   setDragging(false);
-                  const newFiles = Array.from(e.dataTransfer.files).filter(
-                    (f) => f.type.startsWith("image/"),
-                  );
+                  const dropped = Array.from(e.dataTransfer.files);
+                  const heic = dropped.find((f) => /\.(heic|heif)$/i.test(f.name));
+                  if (heic) {
+                    setError("HEIC 파일은 지원하지 않습니다. 아이폰 설정 → 카메라 → 포맷 → '높은 호환성'으로 변경 후 촬영해주세요.");
+                    return;
+                  }
+                  const newFiles = dropped.filter((f) => f.type.startsWith("image/") || /\.(jpg|jpeg|png|webp)$/i.test(f.name));
+                  if (newFiles.length === 0) {
+                    setError("JPG, PNG, WEBP 이미지만 업로드 가능합니다.");
+                    return;
+                  }
+                  setError("");
                   setFiles((prev) => [...prev, ...newFiles]);
                 }}
                 className={`border-2 border-dashed rounded-xl text-center cursor-pointer transition-colors ${
@@ -403,14 +421,19 @@ export default function ReceiptPage() {
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  accept=".jpg,.jpeg,.png,.webp"
+                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                   className="hidden"
                   onChange={(e) => {
-                    if (e.target.files)
-                      setFiles((prev) => [
-                        ...prev,
-                        ...Array.from(e.target.files!),
-                      ]);
+                    if (e.target.files) {
+                      const selected = Array.from(e.target.files);
+                      const heic = selected.find((f) => /\.(heic|heif)$/i.test(f.name));
+                      if (heic) {
+                        setError("HEIC 파일은 지원하지 않습니다. 아이폰 설정 → 카메라 → 포맷 → '높은 호환성'으로 변경 후 촬영해주세요.");
+                      } else {
+                        setError("");
+                        setFiles((prev) => [...prev, ...selected]);
+                      }
+                    }
                     e.target.value = "";
                   }}
                 />
@@ -425,7 +448,10 @@ export default function ReceiptPage() {
                       영수증 사진을 업로드하세요
                     </p>
                     <p className="text-slate-400 text-sm mt-1">
-                      JPG, PNG 형식 · 여러 장 가능
+                      JPG, PNG, WEBP · 여러 장 가능 · 4MB 이하
+                    </p>
+                    <p className="text-slate-400 text-xs mt-0.5">
+                      HEIC는 미지원 (아이폰: 설정 → 카메라 → &lsquo;높은 호환성&rsquo;)
                     </p>
                   </>
                 )}
