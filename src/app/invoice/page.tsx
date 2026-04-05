@@ -241,7 +241,6 @@ export default function InvoicePage() {
 // ── 결과 화면 ──
 
 function ResultScreen({ data, onReset }: { data: InvoiceData; onReset: () => void }) {
-  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [downloadingWord, setDownloadingWord] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
 
@@ -335,11 +334,8 @@ function ResultScreen({ data, onReset }: { data: InvoiceData; onReset: () => voi
 
         {/* 다운로드 + 이메일 */}
         <div className="flex gap-3 mt-6">
-          <button onClick={() => download("/api/invoice/download-pdf", `${data.docType}.pdf`, setDownloadingPdf)} disabled={downloadingPdf} className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 disabled:bg-slate-400 transition-colors flex items-center justify-center gap-2">
-            {downloadingPdf ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />생성 중...</> : <>PDF<span className="text-xs bg-white/20 px-2 py-0.5 rounded">2</span></>}
-          </button>
           <button onClick={() => download("/api/invoice/download-word", `${data.docType}.docx`, setDownloadingWord)} disabled={downloadingWord} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:bg-blue-300 transition-colors flex items-center justify-center gap-2">
-            {downloadingWord ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />생성 중...</> : <>Word<span className="text-xs bg-white/20 px-2 py-0.5 rounded">1</span></>}
+            {downloadingWord ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />생성 중...</> : <>Word 다운로드<span className="text-xs bg-white/20 px-2 py-0.5 rounded">2</span></>}
           </button>
           <button onClick={async () => {
             setSendingEmail(true);
