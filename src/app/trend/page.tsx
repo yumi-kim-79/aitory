@@ -161,7 +161,7 @@ export default function TrendPage() {
           <div className="text-center py-8"><div className="inline-block w-8 h-8 border-4 border-slate-200 border-t-slate-900 rounded-full animate-spin" /><p className="text-slate-500 text-sm mt-2">뉴스 검색 중...</p></div>
         )}
 
-        {selectedKeyword && !loadingNews && articles.length > 0 && (mainTab === "trends") && (
+        {selectedKeyword && !loadingNews && articles.length > 0 && (mainTab === "trends" || mainTab === "kbuzz") && (
           <div className="space-y-3 mb-6">
             <h2 className="text-lg font-bold text-slate-900">&ldquo;{selectedKeyword}&rdquo; 관련 뉴스</h2>
             {articles.map((a, i) => (
