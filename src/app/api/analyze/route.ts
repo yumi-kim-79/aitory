@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+export const maxDuration = 60;
 import Anthropic from "@anthropic-ai/sdk";
 import { execFile } from "child_process";
 import { writeFile, unlink } from "fs/promises";

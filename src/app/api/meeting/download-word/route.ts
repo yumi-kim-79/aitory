@@ -1,4 +1,5 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from "docx";
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {

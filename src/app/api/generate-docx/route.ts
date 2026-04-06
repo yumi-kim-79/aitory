@@ -1,3 +1,5 @@
+export const maxDuration = 60;
+
 import {
   Document,
   Packer,

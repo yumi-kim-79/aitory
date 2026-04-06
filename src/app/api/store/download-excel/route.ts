@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+export const maxDuration = 60;
 
 interface PlatformData {
   platform: string;

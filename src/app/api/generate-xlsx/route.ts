@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+export const maxDuration = 60;
 import ExcelJS from "exceljs";
 
 interface FixedClause {

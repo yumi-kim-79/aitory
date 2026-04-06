@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
       const message = await client.messages.create({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
+        max_tokens: 2000,
         temperature: 0.7,
         system: `당신은 한국의 전문 블로그 작가입니다.
 반드시 JSON 형식으로만 응답하세요. 응답은 반드시 { 로 시작해야 합니다. 마크다운 코드블록으로 감싸지 마세요.
