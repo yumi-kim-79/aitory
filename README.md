@@ -206,3 +206,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-06 | aitory_users 자동 생성 버그 수정(에러 로깅 추가), 관리자 계정 설정 스크립트(scripts/set-admin.mjs) |
 | 2026-04-06 | 구글 로그인 cancelled-popup-request 에러 수정 - useRef 중복 호출 방지, 버튼 로딩 상태 추가 |
 | 2026-04-06 | authDomain 원복 - aitory.vercel.app → mycloud-5ce96.firebaseapp.com (/__/auth/iframe 404 수정) |
+| 2026-04-06 | 크레딧 0 / Kbuzz 탭 미표시 수정 - Vercel Firebase Admin 환경변수 printf 재등록, aitory_users 확인 스크립트 |
