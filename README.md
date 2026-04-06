@@ -223,3 +223,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-06 | 긴급수정 - 실패시 크레딧 미차감(성공후차감), 뉴스검색 Google RSS 전환(무료/1~2초), 504 해결 |
 | 2026-04-06 | 메타설명 150자 강제 truncate - generate/post-to-wp 양쪽에서 excerpt 150자 초과 시 자동 절단 |
 | 2026-04-06 | generate API 400 에러 수정 - mode 정규화(kbuzz/blog→blog, 기본sns), 미지원 mode fallback |
+| 2026-04-06 | AI 블로그 글 탭 Kbuzz 발행/에러/결과 표시 관리자 전용 확인 및 보강 |
