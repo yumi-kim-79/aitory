@@ -40,24 +40,27 @@ export async function POST(request: Request) {
         return Response.json({ error: "정치/선거 관련 주제는 작성할 수 없습니다." }, { status: 400 });
       }
 
+      const today = new Date().toISOString().slice(0, 10);
       const message = await client.messages.create({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 2500,
+        max_tokens: 3000,
         messages: [{
           role: "user",
           content: `키워드: ${keyword}
+오늘: ${today}
 ${newsText ? `뉴스:\n${newsText}\n` : ""}
-아래 뉴스들을 바탕으로 깊이 있는 블로그 글 작성. JSON만 반환, 코드블록 없이:
-{"title":"SEO 제목 30~60자","slug":"영문-슬러그","content":"본문 마크다운","excerpt":"메타설명 160자","category":"IT/AI|K뷰티|K팝/한류|경제|글로벌|사회|인사이트","tags":["태그1","태그2","태그3","태그4","태그5"],"imageAlt":"이미지 alt"}
+위 뉴스 바탕으로 SEO 최적화 블로그 글 작성. JSON만 반환, 코드블록 없이:
+{"title":"SEO 제목 40~60자","slug":"영문-슬러그-50자이내","content":"HTML 본문 1500자+","excerpt":"메타설명 150자 이내","category":"IT/AI|K뷰티|K팝/한류|경제|글로벌|사회|인사이트","tags":["태그1","태그2","태그3","태그4","태그5","태그6","태그7"]}
 
-content 작성 규칙:
-- 최소 1500자 이상
-- ## 소제목 4개 이상 (각 소제목 아래 200자+ 내용)
-- 뉴스 핵심 내용을 상세히 분석하고 배경 설명
-- 전문가적 인사이트와 전망 섹션 포함
-- 독자가 공유하고 싶은 유용한 정보 포함
-- [📸이미지: 설명] 이미지 위치 2곳 표시
-- 마지막에 관련 글 유도 문장 1개`,
+content 필수 규칙:
+- 1500자 이상 (절대 미만 금지)
+- <h2>소제목</h2> 4개 이상, 각 300자+ 내용
+- HTML 형식: <h2> <p> <strong> <ul><li> 사용 (마크다운 ## 금지)
+- 뉴스 수치/날짜/인물명 구체적으로 포함
+- 내부링크 1개: <a href="/관련-슬러그">관련 글</a>
+- 이미지 위치 2곳: <!-- 이미지: 설명 | alt: 텍스트 -->
+- 마지막 섹션: "앞으로의 전망" 또는 "결론"
+- excerpt: 150자 이내 (절대 초과 금지)`,
         }],
       });
 

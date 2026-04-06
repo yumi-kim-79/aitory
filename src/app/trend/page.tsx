@@ -162,16 +162,16 @@ export default function TrendPage() {
           <div className="flex gap-1 flex-wrap">{blogPost.tags.map((t, i) => <span key={i} className="text-xs text-slate-400">#{t}</span>)}</div>
         </div>
         <h2 className="text-xl font-bold text-slate-900 mb-4">{blogPost.title}</h2>
-        <div className="text-sm text-slate-700 leading-relaxed space-y-3">
-          {blogPost.content.split("\n").map((line, i) => {
-            const t = line.trim();
-            if (!t) return null;
-            if (/^\[대표이미지:|^\[본문이미지:/.test(t)) return <div key={i} className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs font-medium">📸 {t.replace(/^\[|\]$/g, "")}</div>;
-            if (t.startsWith("## ")) return <h3 key={i} className="text-lg font-bold text-slate-900 mt-4">{t.slice(3)}</h3>;
-            if (t.startsWith("- ")) return <li key={i} className="ml-4 list-disc">{t.slice(2)}</li>;
-            return <p key={i}>{t}</p>;
-          })}
-        </div>
+        <div
+          className="text-sm text-slate-700 leading-relaxed prose prose-sm max-w-none prose-headings:text-slate-900 prose-headings:font-bold prose-h2:text-lg prose-h2:mt-6"
+          dangerouslySetInnerHTML={{
+            __html: blogPost.content
+              .replace(/<!-- 이미지:([^|]+)\|([^>]+)-->/g, '<div style="padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e;margin:12px 0">📸 이미지:$1| $2</div>')
+              .replace(/\[📸이미지:([^\]]+)\]/g, '<div style="padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e;margin:12px 0">📸 이미지:$1</div>')
+              .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+              .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>"),
+          }}
+        />
         {blogPost.excerpt && <p className="mt-4 text-xs text-slate-400 italic">메타: {blogPost.excerpt}</p>}
       </div>
 

@@ -31,7 +31,21 @@ export async function POST(request: Request) {
 
     const auth = Buffer.from(`${wpUser}:${wpPass}`).toString("base64");
 
-    console.log("[wp] 포스팅:", { title: title?.slice(0, 30), slug, status });
+    // 마크다운 잔여물 → HTML 변환
+    let htmlContent = content
+      .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+      .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/^- (.+)$/gm, "<li>$1</li>")
+      .replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>")
+      .replace(/<\/ul>\s*<ul>/g, "");
+
+    // 단락 감싸기 (이미 <h2>, <p> 등이 있으면 스킵)
+    if (!htmlContent.includes("<p>") && !htmlContent.includes("<h2>")) {
+      htmlContent = htmlContent.split("\n\n").map((p) => `<p>${p.trim()}</p>`).join("\n");
+    }
+
+    console.log("[wp] 포스팅:", { title: title?.slice(0, 30), slug, status, contentLen: htmlContent.length });
 
     const wpRes = await fetch(`${wpUrl}/wp-json/wp/v2/posts`, {
       method: "POST",
@@ -41,7 +55,7 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         title,
-        content,
+        content: htmlContent,
         status: status || "draft",
         excerpt: excerpt || "",
         ...(slug ? { slug } : {}),
