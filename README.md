@@ -216,3 +216,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-06 | 블로그 생성 스트리밍 방식 전환 - 504 타임아웃 근본 해결, 실시간 타이핑 효과, JSON 스트림 파싱 |
 | 2026-04-06 | 블로그 생성 504 근본 해결 - system 프롬프트 제거→user 인라인, max_tokens 1500, SNS max_tokens 1000 |
 | 2026-04-06 | 블로그 생성 클라이언트 직접 호출로 504 완전 해결 - dangerouslyAllowBrowser, deduct-credits API 분리 |
+| 2026-04-06 | 블로그 생성 서버 방식 복원 - 클라이언트 호출 롤백, ANTHROPIC_API_KEY 재등록, NEXT_PUBLIC 키 삭제 |
