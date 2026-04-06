@@ -104,7 +104,7 @@ export default function TrendPage() {
     setPublishing(true); setPublishError("");
     try {
       const token = await getIdToken();
-      const res = await fetch("/api/trend/post-to-wp", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ title: blogPost.title, content: blogPost.content, excerpt: blogPost.excerpt, slug: blogPost.slug, status: publishStatus }) });
+      const res = await fetch("/api/trend/post-to-wp", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ title: blogPost.title, content: blogPost.content, excerpt: blogPost.excerpt, slug: blogPost.slug, status: publishStatus, tags: blogPost.tags, category: blogPost.category }) });
       const data = await res.json();
       if (data.ok) setPublishResult({ postUrl: data.postUrl, status: data.status });
       else setPublishError(data.error || "발행 실패");
