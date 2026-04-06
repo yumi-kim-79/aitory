@@ -64,7 +64,11 @@ content: <h2> 4개+, 각 300자+, <p><strong><ul><li> 사용, 내부링크 1개,
       catch { return Response.json({ error: "AI 응답 처리 실패. 다시 시도해주세요." }, { status: 502 }); }
       if (result.error) return Response.json({ error: result.error }, { status: 400 });
 
-      // 성공 시에만 크레딧 차감
+      // excerpt 강제 150자 truncate
+      if (result.excerpt && result.excerpt.length > 150) {
+        result.excerpt = result.excerpt.slice(0, 147) + "...";
+      }
+
       await useCredits(decoded.userId, credits, "AI 블로그 글 생성");
       return Response.json(result);
     }

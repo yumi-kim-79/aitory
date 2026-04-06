@@ -137,7 +137,7 @@ export async function POST(request: Request) {
         title,
         content: htmlContent,
         status: status || "draft",
-        excerpt: excerpt || "",
+        excerpt: excerpt && excerpt.length > 150 ? excerpt.slice(0, 147) + "..." : excerpt || "",
         ...(slug ? { slug } : {}),
         ...(tagIds.length ? { tags: tagIds } : {}),
         ...(categoryIds.length ? { categories: categoryIds } : {}),
