@@ -208,3 +208,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-06 | authDomain 원복 - aitory.vercel.app → mycloud-5ce96.firebaseapp.com (/__/auth/iframe 404 수정) |
 | 2026-04-06 | 크레딧 0 / Kbuzz 탭 미표시 수정 - Vercel Firebase Admin 환경변수 printf 재등록, aitory_users 확인 스크립트 |
 | 2026-04-06 | WordPress 포스팅 502 수정 - tags 제거(ID 미스매치), 타임아웃 25초, 상세 에러 로깅+표시 |
+| 2026-04-06 | Kbuzz 포스팅 이미지 자동 삽입 - Unsplash/Pexels 검색, WP Media 업로드, 대표이미지+본문 이미지+크레딧 |

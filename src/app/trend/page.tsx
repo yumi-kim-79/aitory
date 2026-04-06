@@ -96,7 +96,7 @@ export default function TrendPage() {
       const res = await fetch("/api/trend/post-to-wp", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ title: blogPost.title, content: blogPost.content, excerpt: blogPost.excerpt, status: publishStatus }),
+        body: JSON.stringify({ title: blogPost.title, content: blogPost.content, excerpt: blogPost.excerpt, status: publishStatus, keyword: selectedKeyword }),
       });
       const data = await res.json();
       if (data.ok) {
