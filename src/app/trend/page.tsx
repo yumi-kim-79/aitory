@@ -62,16 +62,48 @@ export default function TrendPage() {
     } catch { setNewsError("서버 연결 실패"); } finally { setLoadingNews(false); }
   };
 
+  const [streamingText, setStreamingText] = useState("");
+
   const handleGenerate = async (mode: "sns" | "blog") => {
     if (!selectedKeyword || !user) return;
     const setLoading = mode === "sns" ? setLoadingSns : setLoadingBlog;
-    setLoading(true); setApiError("");
+    setLoading(true); setApiError(""); setStreamingText("");
     try {
       const token = await getIdToken();
       const res = await fetch("/api/trend/generate", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ keyword: selectedKeyword, mode, articles }) });
-      const data = await res.json();
-      if (!res.ok) { setApiError(data.error || "생성 실패"); return; }
-      if (mode === "sns") setSnsContent(data); else setBlogPost(data);
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setApiError((data as { error?: string }).error || `생성 실패 (${res.status})`);
+        return;
+      }
+
+      if (mode === "sns") {
+        const data = await res.json();
+        setSnsContent(data);
+      } else {
+        // blog: 스트리밍 수신
+        const reader = res.body?.getReader();
+        if (!reader) { setApiError("스트리밍 실패"); return; }
+        const decoder = new TextDecoder();
+        let fullText = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          fullText += decoder.decode(value, { stream: true });
+          setStreamingText(fullText);
+        }
+        // 완료 후 JSON 파싱
+        const jsonStr = fullText.match(/\{[\s\S]*\}/)?.[0] || fullText;
+        try {
+          const parsed = JSON.parse(jsonStr);
+          setBlogPost(parsed);
+          setStreamingText("");
+        } catch {
+          setApiError("AI 응답 파싱 실패. 다시 시도해주세요.");
+          setStreamingText("");
+        }
+      }
     } catch { setApiError("서버 연결 실패"); } finally { setLoading(false); }
   };
 
@@ -249,10 +281,19 @@ export default function TrendPage() {
           <div className="mb-8">
             {!selectedKeyword && <p className="text-slate-400 text-center py-8">위에서 트렌드 키워드를 선택하세요</p>}
             {selectedKeyword && <NewsSection />}
-            {selectedKeyword && articles.length > 0 && !blogPost && (
+            {selectedKeyword && articles.length > 0 && !blogPost && !streamingText && (
               <button onClick={() => handleGenerate("blog")} disabled={loadingBlog || !user} className="w-full py-3 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 disabled:bg-slate-300 flex items-center justify-center gap-2">
                 {!user ? "로그인 후 이용 가능" : loadingBlog ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />AI 블로그 글 생성 중...</> : <>📝 AI 블로그 글 생성<span className="text-xs bg-white/20 px-2 py-0.5 rounded">3 크레딧</span></>}
               </button>
+            )}
+            {streamingText && !blogPost && (
+              <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="inline-block w-3 h-3 border-2 border-slate-300 border-t-slate-900 rounded-full animate-spin" />
+                  <span className="text-sm text-slate-500">AI가 글을 작성하고 있습니다...</span>
+                </div>
+                <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap font-mono">{streamingText}</div>
+              </div>
             )}
             <BlogPreview />
           </div>
@@ -263,10 +304,19 @@ export default function TrendPage() {
           <div className="mb-8">
             {!selectedKeyword && <p className="text-slate-400 text-center py-8">위에서 트렌드 키워드를 선택하세요</p>}
             {selectedKeyword && <NewsSection />}
-            {selectedKeyword && articles.length > 0 && !blogPost && (
+            {selectedKeyword && articles.length > 0 && !blogPost && !streamingText && (
               <button onClick={() => handleGenerate("blog")} disabled={loadingBlog} className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center gap-2">
                 {loadingBlog ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />생성 중...</> : <>🚀 Kbuzz 포스팅 생성<span className="text-xs bg-white/20 px-2 py-0.5 rounded">3 크레딧</span></>}
               </button>
+            )}
+            {streamingText && !blogPost && (
+              <div className="bg-white rounded-2xl shadow-lg border border-blue-200 p-8 mb-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="inline-block w-3 h-3 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin" />
+                  <span className="text-sm text-blue-600">Kbuzz 포스팅 생성 중...</span>
+                </div>
+                <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap font-mono">{streamingText}</div>
+              </div>
             )}
             <BlogPreview />
           </div>
