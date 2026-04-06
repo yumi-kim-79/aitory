@@ -9,7 +9,7 @@ type MainTab = "trends" | "content" | "kbuzz";
 interface TrendKeyword { title: string; traffic: string }
 interface Article { title: string; source: string; summary: string; url: string }
 interface SnsContent { summary: string; instagram: string; blog: string; twitter: string; youtube?: string }
-interface BlogPost { title: string; content: string; category: string; tags: string[]; metaDescription: string; excerpt: string }
+interface BlogPost { title: string; slug?: string; content: string; category: string; tags: string[]; excerpt: string; imageAlt?: string }
 
 const WP_CATEGORIES = ["IT", "AI", "K뷰티", "K팝", "경제", "글로벌", "사회", "인사이트"];
 
@@ -96,7 +96,7 @@ export default function TrendPage() {
       const res = await fetch("/api/trend/post-to-wp", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ title: blogPost.title, content: blogPost.content, excerpt: blogPost.excerpt, status: publishStatus, keyword: selectedKeyword }),
+        body: JSON.stringify({ title: blogPost.title, content: blogPost.content, excerpt: blogPost.excerpt, slug: blogPost.slug, status: publishStatus }),
       });
       const data = await res.json();
       if (data.ok) {
@@ -223,9 +223,29 @@ export default function TrendPage() {
                     <span className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">{blogPost.category}</span>
                     <div className="flex gap-1 flex-wrap">{blogPost.tags.map((t, i) => <span key={i} className="text-xs text-slate-400">#{t}</span>)}</div>
                   </div>
+                  {blogPost.slug && <p className="text-xs text-slate-400 mb-2">slug: {blogPost.slug}</p>}
                   <h2 className="text-xl font-bold text-slate-900 mb-4">{blogPost.title}</h2>
-                  <div className="prose prose-sm max-w-none text-slate-700" dangerouslySetInnerHTML={{ __html: blogPost.content }} />
-                  {blogPost.metaDescription && <p className="mt-4 text-xs text-slate-400 italic">메타: {blogPost.metaDescription}</p>}
+                  <div className="text-sm text-slate-700 leading-relaxed space-y-3">
+                    {blogPost.content.split("\n").map((line, i) => {
+                      const trimmed = line.trim();
+                      if (!trimmed) return null;
+                      // 이미지 위치 표시
+                      if (/^\[대표이미지:|^\[본문이미지:/.test(trimmed)) {
+                        return <div key={i} className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs font-medium">📸 {trimmed.replace(/^\[|\]$/g, "")}</div>;
+                      }
+                      // ## 소제목
+                      if (trimmed.startsWith("## ")) {
+                        return <h3 key={i} className="text-lg font-bold text-slate-900 mt-4">{trimmed.slice(3)}</h3>;
+                      }
+                      // **굵게**
+                      if (trimmed.startsWith("- ")) {
+                        return <li key={i} className="ml-4 list-disc">{trimmed.slice(2)}</li>;
+                      }
+                      return <p key={i}>{trimmed}</p>;
+                    })}
+                  </div>
+                  {blogPost.excerpt && <p className="mt-4 text-xs text-slate-400 italic">메타: {blogPost.excerpt}</p>}
+                  {blogPost.imageAlt && <p className="text-xs text-slate-400">이미지 alt: {blogPost.imageAlt}</p>}
                 </div>
 
                 {/* 발행 옵션 */}

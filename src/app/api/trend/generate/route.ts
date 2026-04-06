@@ -29,34 +29,55 @@ export async function POST(request: Request) {
       : "";
 
     if (mode === "blog") {
-      // Kbuzz 블로그 전문 생성
+      // 정치/선거 키워드 필터링
+      if (/정치|선거|탄핵|대통령|정당|국회|여당|야당|민주당|국민의힘/.test(keyword)) {
+        return Response.json({ error: "정치/선거 관련 주제는 작성할 수 없습니다." }, { status: 400 });
+      }
+
       const message = await client.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 4096,
         temperature: 0.7,
-        system: `당신은 한국 블로그 SEO 전문 작가입니다. 반드시 JSON 형식으로만 응답하세요. 응답은 반드시 { 로 시작.
+        system: `당신은 한국의 전문 블로그 작가입니다.
+반드시 JSON 형식으로만 응답하세요. 응답은 반드시 { 로 시작해야 합니다. 마크다운 코드블록으로 감싸지 마세요.
 
 {
-  "title": "SEO 최적화 블로그 제목",
-  "content": "본문 1500자 이상 (HTML 태그 포함: <h2>, <p>, <strong>, <ul>, <li>)",
-  "category": "IT|AI|K뷰티|K팝|경제|글로벌|사회|인사이트",
+  "title": "SEO 최적화된 제목 (클릭 유도, 30~60자)",
+  "slug": "english-slug-50chars-max",
+  "content": "본문 내용 (마크다운 형식, 이미지 위치 표시 포함)",
+  "excerpt": "메타 설명 160자 이내",
+  "category": "IT/AI | K뷰티 | K팝/한류 | 경제 | 글로벌 | 사회 | 인사이트 중 하나",
   "tags": ["태그1", "태그2", "태그3", "태그4", "태그5"],
-  "metaDescription": "메타 설명 160자 이내",
-  "excerpt": "요약 200자 이내"
+  "imageAlt": "대표 이미지 alt 텍스트"
 }
 
-작성 원칙:
-- 제목은 클릭 유도형, 키워드 포함
-- 본문은 소제목(H2) 3~4개 + 단락 + 불릿포인트
-- SEO 키워드 자연스럽게 배치
-- 한국어 독자 대상`,
-        messages: [{ role: "user", content: `"${keyword}" 키워드로 Kbuzz 블로그 포스팅을 작성해주세요.${newsContext}` }],
+본문 작성 규칙:
+1. 최소 800자 이상 (필수)
+2. ## 소제목 3개 이상 포함
+3. 정치/선거/탄핵/정당 관련 내용 절대 제외
+4. 독자적 분석과 인사이트 포함 (타 사이트 내용 복사 금지)
+5. 본문 마지막에 관련 글 유도 문장 1개 포함
+   예: "관련 글도 함께 읽어보세요: K팝 최신 트렌드 모아보기"
+
+이미지 위치 표시 규칙:
+- 대표 이미지: 제목 아래 첫 번째 단락 앞에 아래 표시
+  [대표이미지: {키워드} 관련 이미지 | alt텍스트: {설명}]
+- 본문 이미지: H2 소제목 중 하나 아래에 아래 표시
+  [본문이미지: {설명} | alt텍스트: {설명}]
+
+JSON 필드 규칙:
+- tags: 5~10개, 한국어
+- slug: 영문 소문자와 하이픈만
+- excerpt: 160자 이내
+- content: 마크다운 형식 (## 소제목, **굵게**, - 목록 등)`,
+        messages: [{ role: "user", content: `"${keyword}" 키워드로 고품질 블로그 포스팅을 작성해주세요.${newsContext}` }],
       });
 
       const responseText = message.content[0].type === "text" ? message.content[0].text : "";
       let result;
       try { result = JSON.parse(extractJSON(responseText)); }
       catch { return Response.json({ error: "AI 응답 처리 실패" }, { status: 502 }); }
+      if (result.error) return Response.json({ error: result.error }, { status: 400 });
       return Response.json(result);
     }
 
