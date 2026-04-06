@@ -70,11 +70,10 @@ export default function TrendPage() {
   };
 
   const handleNewsSearch = async () => {
-    if (!selectedKeyword || !user) return;
+    if (!selectedKeyword) return;
     setLoadingNews(true); setNewsError("");
     try {
-      const token = await getIdToken();
-      const res = await fetch("/api/trend/news", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ keyword: selectedKeyword }) });
+      const res = await fetch("/api/trend/news", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keyword: selectedKeyword }) });
       const data = await res.json();
       if (!res.ok) { setNewsError(data.error || "뉴스 검색 실패"); return; }
       setArticles(data.articles || []);
@@ -129,12 +128,17 @@ export default function TrendPage() {
   const NewsSection = () => (
     <>
       {selectedKeyword && !articles.length && !loadingNews && !newsError && (
-        <button onClick={handleNewsSearch} disabled={!user || loadingNews} className="w-full py-3 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 disabled:bg-slate-300 flex items-center justify-center gap-2 mb-6">
-          {!user ? "로그인 후 이용 가능" : <>🔍 뉴스 검색하기<span className="text-xs bg-white/20 px-2 py-0.5 rounded">1 크레딧</span></>}
+        <button onClick={handleNewsSearch} disabled={loadingNews} className="w-full py-3 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 disabled:bg-slate-300 flex items-center justify-center gap-2 mb-6">
+          🔍 뉴스 검색하기<span className="text-xs bg-white/20 px-2 py-0.5 rounded">무료</span>
         </button>
       )}
       {loadingNews && <div className="text-center py-8"><div className="inline-block w-8 h-8 border-4 border-slate-200 border-t-slate-900 rounded-full animate-spin" /><p className="text-slate-500 text-sm mt-2">뉴스 검색 중...</p></div>}
-      {newsError && <p className="text-red-500 text-sm text-center py-4 mb-4">{newsError}</p>}
+      {newsError && (
+        <div className="text-center py-4 mb-4">
+          <p className="text-red-500 text-sm">{newsError}</p>
+          <button onClick={handleNewsSearch} className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium">다시 시도</button>
+        </div>
+      )}
       {articles.length > 0 && (
         <div className="space-y-3 mb-6">
           <h2 className="text-lg font-bold text-slate-900">&ldquo;{selectedKeyword}&rdquo; 관련 뉴스</h2>
