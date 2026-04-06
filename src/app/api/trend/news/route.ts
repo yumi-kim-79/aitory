@@ -8,7 +8,10 @@ export async function POST(request: Request) {
     }
 
     // Google News RSS (무료, 빠름, AI 불필요)
-    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(keyword)}&hl=ko&gl=KR&ceid=KR:ko`;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const afterDate = sevenDaysAgo.toISOString().split("T")[0];
+    const rssUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(keyword)}+after:${afterDate}&hl=ko&gl=KR&ceid=KR:ko`;
     const res = await fetch(rssUrl, { signal: AbortSignal.timeout(10000) });
 
     if (!res.ok) {
@@ -44,14 +47,20 @@ export async function POST(request: Request) {
       let publishedAt = "";
       if (pubDate) {
         try {
-          publishedAt = new Date(pubDate).toISOString().slice(0, 10);
-        } catch {}
+          const parsed = new Date(pubDate);
+          if (isNaN(parsed.getTime())) continue; // 날짜 파싱 실패 → 제외
+          const currentYear = new Date().getFullYear();
+          if (parsed.getFullYear() < currentYear - 1) continue; // 작년 이전 → 제외
+          publishedAt = parsed.toISOString().slice(0, 10);
+        } catch { continue; } // 파싱 에러 → 제외
       }
 
       // 7일 이내 필터링
       if (publishedAt) {
         const diff = (Date.now() - new Date(publishedAt).getTime()) / 86400000;
         if (diff > 7) continue;
+      } else {
+        continue; // 날짜 없으면 제외
       }
 
       if (title) {
@@ -64,6 +73,9 @@ export async function POST(request: Request) {
         });
       }
     }
+
+    // 최신순 정렬
+    articles.sort((a, b) => (b.publishedAt || "").localeCompare(a.publishedAt || ""));
 
     return Response.json({ articles });
   } catch (error) {

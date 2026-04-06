@@ -80,8 +80,9 @@ export default function TrendPage() {
     } catch { setNewsError("서버 연결 실패"); } finally { setLoadingNews(false); }
   };
 
-  const handleGenerate = async (mode: "sns" | "blog") => {
+  const handleGenerate = async (mode: "sns" | "blog" | "kbuzz") => {
     if (!selectedKeyword || !user) return;
+    const isBlog = mode === "blog" || mode === "kbuzz";
     const setLoading = mode === "sns" ? setLoadingSns : setLoadingBlog;
     setLoading(true); setApiError("");
     try {
@@ -295,7 +296,7 @@ export default function TrendPage() {
             {!selectedKeyword && <p className="text-slate-400 text-center py-8">위에서 트렌드 키워드를 선택하세요</p>}
             {selectedKeyword && <NewsSection />}
             {selectedKeyword && articles.length > 0 && !blogPost && (
-              <button onClick={() => handleGenerate("blog")} disabled={loadingBlog} className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center gap-2">
+              <button onClick={() => handleGenerate("kbuzz")} disabled={loadingBlog} className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center gap-2">
                 {loadingBlog ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />생성 중...</> : <>🚀 Kbuzz 포스팅 생성<span className="text-xs bg-white/20 px-2 py-0.5 rounded">3 크레딧</span></>}
               </button>
             )}

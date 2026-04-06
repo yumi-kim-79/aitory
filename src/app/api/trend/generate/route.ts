@@ -26,8 +26,9 @@ export async function POST(request: Request) {
     };
     const keyword = body.keyword;
     const articles = body.articles;
-    // mode 정규화: kbuzz/blog → blog, 나머지 → sns
-    const mode = (body.mode === "blog" || body.mode === "kbuzz") ? "blog" : "sns";
+    const rawMode = body.mode || "blog";
+    const isKbuzz = rawMode === "kbuzz";
+    const mode = (rawMode === "blog" || rawMode === "kbuzz") ? "blog" : "sns";
 
     if (!keyword?.trim()) return Response.json({ error: "키워드를 입력해주세요." }, { status: 400 });
 
@@ -45,20 +46,21 @@ export async function POST(request: Request) {
         return Response.json({ error: "정치/선거 관련 주제는 작성할 수 없습니다." }, { status: 400 });
       }
 
-      const today = new Date().toISOString().slice(0, 10);
+      const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
 
-      // Claude API 호출
       const message = await client.messages.create({
         model: "claude-sonnet-4-20250514",
         max_tokens: 3000,
         messages: [{
           role: "user",
-          content: `키워드: ${keyword} (${today})
+          content: `키워드: ${keyword}
+오늘: ${today}
 ${newsTitles ? `뉴스:\n${newsTitles}\n` : ""}
 SEO 블로그 글 작성. JSON만 반환:
 {"title":"SEO 제목 40~60자","slug":"영문-슬러그","content":"HTML 본문 1500자+","excerpt":"메타설명 150자이내","category":"IT/AI|K뷰티|K팝/한류|경제|글로벌|사회|인사이트","tags":["한국어태그x7"]}
 
-content: <h2> 4개+, 각 300자+, <p><strong><ul><li> 사용, 내부링크 1개, 이미지위치 2곳, 마지막 전망/결론`,
+content: <h2> 4개+, 각300자+, <p><strong><ul><li>, 내부링크1, 이미지위치2, 전망/결론
+오늘(${today}) 기준 최신 정보로 작성. 과거 연도를 현재 시제로 쓰지 말 것.`,
         }],
       });
 
@@ -78,7 +80,12 @@ content: <h2> 4개+, 각 300자+, <p><strong><ul><li> 사용, 내부링크 1개,
         result.excerpt = result.excerpt.slice(0, 147) + "...";
       }
 
-      await useCredits(decoded.userId, credits, "AI 블로그 글 생성");
+      // Kbuzz 전용: AI 이미지 안내 문구 추가
+      if (isKbuzz && result.content) {
+        result.content += '\n<p style="color:#888;font-size:0.85em;border-top:1px solid #eee;margin-top:30px;padding-top:15px;text-align:center;">※ 본문의 이미지는 기사의 내용을 바탕으로 AI로 재구성하였습니다.</p>';
+      }
+
+      await useCredits(decoded.userId, credits, isKbuzz ? "Kbuzz 블로그 생성" : "AI 블로그 글 생성");
       return Response.json(result);
     }
 
