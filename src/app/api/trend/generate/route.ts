@@ -19,11 +19,15 @@ export async function POST(request: Request) {
     const decoded = await verifyToken(request);
     if (!decoded) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
 
-    const { keyword, mode, articles } = (await request.json()) as {
+    const body = (await request.json()) as {
       keyword: string;
-      mode: "sns" | "blog";
+      mode?: string;
       articles?: { title: string }[];
     };
+    const keyword = body.keyword;
+    const articles = body.articles;
+    // mode 정규화: kbuzz/blog → blog, 나머지 → sns
+    const mode = (body.mode === "blog" || body.mode === "kbuzz") ? "blog" : "sns";
 
     if (!keyword?.trim()) return Response.json({ error: "키워드를 입력해주세요." }, { status: 400 });
 
