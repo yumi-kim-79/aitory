@@ -14,32 +14,6 @@ function extractJSON(text: string): string {
 
 export const maxDuration = 60;
 
-const BLOG_SYSTEM = `당신은 한국의 전문 블로그 작가입니다.
-반드시 JSON 형식으로만 응답하세요. 응답은 반드시 { 로 시작해야 합니다. 마크다운 코드블록으로 감싸지 마세요.
-
-{
-  "title": "SEO 최적화된 제목 (클릭 유도, 30~60자)",
-  "slug": "english-slug-50chars-max",
-  "content": "본문 내용 (마크다운 형식, 이미지 위치 표시 포함)",
-  "excerpt": "메타 설명 160자 이내",
-  "category": "IT/AI | K뷰티 | K팝/한류 | 경제 | 글로벌 | 사회 | 인사이트 중 하나",
-  "tags": ["태그1", "태그2", "태그3", "태그4", "태그5"],
-  "imageAlt": "대표 이미지 alt 텍스트"
-}
-
-본문 작성 규칙:
-1. 최소 800자 이상
-2. ## 소제목 3개 이상
-3. 정치/선거/탄핵/정당 관련 내용 제외
-4. 독자적 분석과 인사이트 포함
-5. 본문 마지막에 관련 글 유도 문장
-
-이미지 위치 표시:
-- [대표이미지: {키워드} 관련 이미지 | alt텍스트: {설명}]
-- [본문이미지: {설명} | alt텍스트: {설명}]
-
-tags: 5~10개 한국어, slug: 영문+하이픈, excerpt: 160자 이내`;
-
 export async function POST(request: Request) {
   try {
     const decoded = await verifyToken(request);
@@ -51,16 +25,14 @@ export async function POST(request: Request) {
       articles?: { title: string; summary: string }[];
     };
 
-    if (!keyword?.trim()) {
-      return Response.json({ error: "키워드를 입력해주세요." }, { status: 400 });
-    }
+    if (!keyword?.trim()) return Response.json({ error: "키워드를 입력해주세요." }, { status: 400 });
 
     const credits = mode === "blog" ? 3 : 2;
     const ok = await useCredits(decoded.userId, credits, mode === "blog" ? "AI 블로그 글 생성" : "AI SNS 콘텐츠 생성");
     if (!ok) return Response.json({ error: "크레딧이 부족합니다." }, { status: 402 });
 
-    const newsContext = articles?.length
-      ? `\n관련 뉴스:\n${articles.map((a, i) => `${i + 1}. ${a.title} — ${a.summary}`).join("\n")}`
+    const newsText = articles?.length
+      ? articles.map((a, i) => `${i + 1}. ${a.title}: ${a.summary}`).join("\n")
       : "";
 
     if (mode === "blog") {
@@ -68,25 +40,33 @@ export async function POST(request: Request) {
         return Response.json({ error: "정치/선거 관련 주제는 작성할 수 없습니다." }, { status: 400 });
       }
 
-      // 스트리밍 방식 — 타임아웃 방지
       const stream = client.messages.stream({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 2000,
+        max_tokens: 1500,
         temperature: 0.7,
-        system: BLOG_SYSTEM,
-        messages: [{ role: "user", content: `"${keyword}" 키워드로 고품질 블로그 포스팅을 작성해주세요.${newsContext}` }],
+        messages: [{
+          role: "user",
+          content: `키워드: ${keyword}
+${newsText ? `뉴스:\n${newsText}\n` : ""}
+아래 JSON으로 한국어 블로그 글 작성. JSON만 반환, 코드블록 없이:
+{"title":"SEO 제목 30~60자","slug":"영문-슬러그","content":"본문 마크다운(## 소제목 3개, 800자+, [📸이미지: 설명] 2곳)","excerpt":"메타설명 160자","category":"IT/AI|K뷰티|K팝/한류|경제|글로벌|사회|인사이트","tags":["태그1","태그2","태그3","태그4","태그5"],"imageAlt":"대표이미지 alt"}`,
+        }],
       });
 
       const readable = new ReadableStream({
         async start(controller) {
           const encoder = new TextEncoder();
-          for await (const event of stream) {
-            if (event.type === "content_block_delta") {
-              const delta = event.delta;
-              if ("text" in delta) {
-                controller.enqueue(encoder.encode(delta.text));
+          try {
+            for await (const event of stream) {
+              if (event.type === "content_block_delta") {
+                const delta = event.delta;
+                if ("text" in delta) {
+                  controller.enqueue(encoder.encode(delta.text));
+                }
               }
             }
+          } catch (e) {
+            controller.enqueue(encoder.encode(`\n\n{"error":"${e instanceof Error ? e.message : "생성 중 오류"}"}`));
           }
           controller.close();
         },
@@ -97,21 +77,18 @@ export async function POST(request: Request) {
       });
     }
 
-    // SNS — 빠르므로 기존 방식 유지
+    // SNS 모드
     const message = await client.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
+      max_tokens: 1000,
       temperature: 0.7,
-      system: `당신은 한국 SNS 콘텐츠 전문가입니다. 반드시 JSON 형식으로만 응답하세요. 응답은 반드시 { 로 시작.
-
-{
-  "summary": "핵심 내용 3줄 요약",
-  "instagram": "인스타그램 포스팅 (해시태그 포함, 200자 이내)",
-  "blog": "블로그 도입부 (300자 이내)",
-  "twitter": "X/트위터 포스팅 (140자 이내)",
-  "youtube": "유튜브 제목 (60자 이내)"
-}`,
-      messages: [{ role: "user", content: `"${keyword}" 키워드로 SNS 콘텐츠를 생성해주세요.${newsContext}` }],
+      messages: [{
+        role: "user",
+        content: `키워드: ${keyword}
+${newsText ? `뉴스:\n${newsText}\n` : ""}
+아래 JSON으로 SNS 콘텐츠 생성. JSON만 반환:
+{"summary":"3줄 요약","instagram":"인스타 200자+해시태그","blog":"블로그 도입 300자","twitter":"X 140자","youtube":"유튜브 제목 60자"}`,
+      }],
     });
 
     const responseText = message.content[0].type === "text" ? message.content[0].text : "";
