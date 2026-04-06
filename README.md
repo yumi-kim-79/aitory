@@ -225,3 +225,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-06 | generate API 400 에러 수정 - mode 정규화(kbuzz/blog→blog, 기본sns), 미지원 mode fallback |
 | 2026-04-06 | AI 블로그 글 탭 Kbuzz 발행/에러/결과 표시 관리자 전용 확인 및 보강 |
 | 2026-04-06 | generate API 502 에러 수정 - JSON 파싱 실패 로깅 강화, 에러에 "크레딧 미차감" 명시 |
+| 2026-04-06 | Kbuzz 버튼 isAdmin 조건 전수 검증 완료 - 6곳 모두 정상 적용 확인, 현재 계정이 admin이라 정상 표시 |
