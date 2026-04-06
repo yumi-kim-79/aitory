@@ -125,7 +125,11 @@ export async function POST(request: Request) {
       console.log("[wp] 카테고리:", category, "→ ID:", catId);
     }
 
-    console.log("[wp] 포스팅:", { title: title?.slice(0, 30), slug, status, tags: tagIds.length, cats: categoryIds.length });
+    const safeExcerpt = excerpt && excerpt.length > 150
+      ? excerpt.slice(0, 147) + "..."
+      : excerpt || "";
+
+    console.log("[wp] 포스팅:", { title: title?.slice(0, 30), slug, status, tags: tagIds.length, cats: categoryIds.length, excerptLen: safeExcerpt.length });
 
     const wpRes = await fetch(`${wpUrl}/wp-json/wp/v2/posts`, {
       method: "POST",
@@ -137,7 +141,10 @@ export async function POST(request: Request) {
         title,
         content: htmlContent,
         status: status || "draft",
-        excerpt: excerpt && excerpt.length > 150 ? excerpt.slice(0, 147) + "..." : excerpt || "",
+        excerpt: safeExcerpt,
+        meta: {
+          _surerank_description: safeExcerpt,
+        },
         ...(slug ? { slug } : {}),
         ...(tagIds.length ? { tags: tagIds } : {}),
         ...(categoryIds.length ? { categories: categoryIds } : {}),

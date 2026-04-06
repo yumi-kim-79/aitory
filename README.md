@@ -227,3 +227,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-06 | generate API 502 에러 수정 - JSON 파싱 실패 로깅 강화, 에러에 "크레딧 미차감" 명시 |
 | 2026-04-06 | Kbuzz 버튼 isAdmin 조건 전수 검증 완료 - 6곳 모두 정상 적용 확인, 현재 계정이 admin이라 정상 표시 |
 | 2026-04-06 | Kbuzz AI 이미지 안내문구 추가, 뉴스 날짜 필터링 강화(after: 파라미터, 작년 이전 제외, 최신순 정렬) |
+| 2026-04-06 | SureRank SEO description 수정 - excerpt 150자 + _surerank_description 메타 필드 전송 |
