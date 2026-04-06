@@ -85,19 +85,28 @@ export default function TrendPage() {
     } catch {} finally { setLoadingBlog(false); }
   };
 
+  const [publishError, setPublishError] = useState("");
+
   const handlePublish = async () => {
     if (!blogPost) return;
     setPublishing(true);
+    setPublishError("");
     try {
       const token = await getIdToken();
       const res = await fetch("/api/trend/post-to-wp", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ ...blogPost, status: publishStatus }),
+        body: JSON.stringify({ title: blogPost.title, content: blogPost.content, excerpt: blogPost.excerpt, status: publishStatus }),
       });
       const data = await res.json();
-      if (data.ok) setPublishResult({ postUrl: data.postUrl, status: data.status });
-    } catch {} finally { setPublishing(false); }
+      if (data.ok) {
+        setPublishResult({ postUrl: data.postUrl, status: data.status });
+      } else {
+        setPublishError(data.error || `발행 실패 (${res.status})`);
+      }
+    } catch (e) {
+      setPublishError(e instanceof Error ? e.message : "발행 실패");
+    } finally { setPublishing(false); }
   };
 
   const copy = async (text: string, label: string) => {
@@ -229,6 +238,12 @@ export default function TrendPage() {
                     <button onClick={handlePublish} disabled={publishing} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-blue-300 flex items-center justify-center gap-2">
                       {publishing ? "발행 중..." : "🚀 Kbuzz에 발행하기"}
                     </button>
+                  </div>
+                )}
+
+                {publishError && (
+                  <div className="p-4 bg-red-50 rounded-xl border border-red-200">
+                    <p className="text-sm text-red-700">{publishError}</p>
                   </div>
                 )}
 

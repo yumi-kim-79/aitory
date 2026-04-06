@@ -14,11 +14,9 @@ export async function POST(request: Request) {
       return Response.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
     }
 
-    const { title, content, category, tags, excerpt, status } = (await request.json()) as {
+    const { title, content, excerpt, status } = (await request.json()) as {
       title: string;
       content: string;
-      category: string;
-      tags: string[];
       excerpt: string;
       status: "draft" | "publish";
     };
@@ -27,13 +25,20 @@ export async function POST(request: Request) {
     const wpUser = process.env.WP_USERNAME;
     const wpPass = process.env.WP_APP_PASSWORD;
 
+    console.log("[wp] 포스팅 시작:", { wpUrl, wpUser: wpUser?.slice(0, 5), hasPass: !!wpPass, title: title?.slice(0, 30) });
+
     if (!wpUrl || !wpUser || !wpPass) {
-      return Response.json({ error: "WordPress 연동 설정이 필요합니다." }, { status: 500 });
+      return Response.json({
+        error: `WordPress 연동 설정 부족: URL=${!!wpUrl}, USER=${!!wpUser}, PASS=${!!wpPass}`,
+      }, { status: 500 });
     }
 
     const auth = Buffer.from(`${wpUser}:${wpPass}`).toString("base64");
+    const endpoint = `${wpUrl}/wp-json/wp/v2/posts`;
 
-    const wpRes = await fetch(`${wpUrl}/wp-json/wp/v2/posts`, {
+    console.log("[wp] REST API 호출:", endpoint);
+
+    const wpRes = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -43,18 +48,29 @@ export async function POST(request: Request) {
         title,
         content,
         status: status || "draft",
-        excerpt,
-        tags: tags || [],
+        excerpt: excerpt || "",
       }),
+      signal: AbortSignal.timeout(25000),
     });
 
+    const responseText = await wpRes.text();
+    console.log("[wp] 응답:", wpRes.status, responseText.slice(0, 300));
+
     if (!wpRes.ok) {
-      const errText = await wpRes.text();
-      console.error("[wp] 포스팅 실패:", wpRes.status, errText);
-      return Response.json({ error: `WordPress 포스팅 실패: ${wpRes.status}` }, { status: 502 });
+      return Response.json({
+        error: `WordPress 포스팅 실패 (${wpRes.status}): ${responseText.slice(0, 200)}`,
+      }, { status: 502 });
     }
 
-    const wpData = await wpRes.json();
+    let wpData;
+    try {
+      wpData = JSON.parse(responseText);
+    } catch {
+      return Response.json({
+        error: "WordPress 응답 파싱 실패",
+      }, { status: 502 });
+    }
+
     return Response.json({
       ok: true,
       postId: wpData.id,
@@ -63,6 +79,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 오류";
-    return Response.json({ error: msg }, { status: 500 });
+    console.error("[wp] 에러:", msg);
+    return Response.json({ error: `포스팅 에러: ${msg}` }, { status: 500 });
   }
 }
