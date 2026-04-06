@@ -64,47 +64,94 @@ export default function TrendPage() {
 
   const [streamingText, setStreamingText] = useState("");
 
+  // 크레딧 사전 차감 (서버)
+  const deductCredits = async (amount: number, service: string): Promise<boolean> => {
+    const token = await getIdToken();
+    const res = await fetch("/api/trend/deduct-credits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ amount, service }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setApiError((data as { error?: string }).error || "크레딧 차감 실패");
+      return false;
+    }
+    return true;
+  };
+
   const handleGenerate = async (mode: "sns" | "blog") => {
     if (!selectedKeyword || !user) return;
     const setLoading = mode === "sns" ? setLoadingSns : setLoadingBlog;
     setLoading(true); setApiError(""); setStreamingText("");
-    try {
-      const token = await getIdToken();
-      const res = await fetch("/api/trend/generate", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ keyword: selectedKeyword, mode, articles }) });
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setApiError((data as { error?: string }).error || `생성 실패 (${res.status})`);
-        return;
-      }
+    try {
+      // 크레딧 사전 차감
+      const credits = mode === "blog" ? 3 : 2;
+      const charged = await deductCredits(credits, mode === "blog" ? "AI 블로그 글 생성" : "AI SNS 콘텐츠 생성");
+      if (!charged) { setLoading(false); return; }
 
       if (mode === "sns") {
-        const data = await res.json();
-        setSnsContent(data);
-      } else {
-        // blog: 스트리밍 수신
-        const reader = res.body?.getReader();
-        if (!reader) { setApiError("스트리밍 실패"); return; }
-        const decoder = new TextDecoder();
-        let fullText = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          fullText += decoder.decode(value, { stream: true });
-          setStreamingText(fullText);
+        // SNS: 서버 API (빠르므로)
+        const token = await getIdToken();
+        const res = await fetch("/api/trend/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ keyword: selectedKeyword, mode: "sns", articles }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setApiError((data as { error?: string }).error || "생성 실패");
+          return;
         }
-        // 완료 후 JSON 파싱
+        setSnsContent(await res.json());
+      } else {
+        // blog: 클라이언트에서 직접 Claude API 호출 (504 타임아웃 회피)
+        const Anthropic = (await import("@anthropic-ai/sdk")).default;
+        const client = new Anthropic({
+          apiKey: process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY,
+          dangerouslyAllowBrowser: true,
+        });
+
+        const newsText = articles?.length
+          ? articles.map((a, i) => `${i + 1}. ${a.title}: ${a.summary}`).join("\n")
+          : "";
+
+        const stream = client.messages.stream({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1500,
+          messages: [{
+            role: "user",
+            content: `키워드: ${selectedKeyword}
+${newsText ? `뉴스:\n${newsText}\n` : ""}
+아래 JSON으로 한국어 블로그 글 작성. JSON만 반환, 코드블록 없이:
+{"title":"SEO 제목 30~60자","slug":"영문-슬러그","content":"본문 마크다운(## 소제목 3개, 800자+, [📸이미지: 설명] 2곳)","excerpt":"메타설명 160자","category":"IT/AI|K뷰티|K팝/한류|경제|글로벌|사회|인사이트","tags":["태그1","태그2","태그3","태그4","태그5"],"imageAlt":"대표이미지 alt"}`,
+          }],
+        });
+
+        let fullText = "";
+        for await (const event of stream) {
+          if (event.type === "content_block_delta") {
+            const delta = event.delta;
+            if ("text" in delta) {
+              fullText += delta.text;
+              setStreamingText(fullText);
+            }
+          }
+        }
+
         const jsonStr = fullText.match(/\{[\s\S]*\}/)?.[0] || fullText;
         try {
-          const parsed = JSON.parse(jsonStr);
-          setBlogPost(parsed);
+          setBlogPost(JSON.parse(jsonStr));
           setStreamingText("");
         } catch {
           setApiError("AI 응답 파싱 실패. 다시 시도해주세요.");
           setStreamingText("");
         }
       }
-    } catch { setApiError("서버 연결 실패"); } finally { setLoading(false); }
+    } catch (e) {
+      setApiError(e instanceof Error ? e.message : "생성 실패");
+    } finally { setLoading(false); }
   };
 
   const handlePublish = async () => {
