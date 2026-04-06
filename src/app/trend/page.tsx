@@ -7,7 +7,26 @@ import { useAuth } from "@/contexts/AuthContext";
 type MainTab = "trends" | "content" | "blog" | "kbuzz";
 
 interface TrendKeyword { title: string; traffic: string }
-interface Article { title: string; source: string; summary: string; url: string }
+interface Article { title: string; source: string; summary: string; url: string; publishedAt?: string }
+
+function formatDate(dateStr?: string): { label: string; color: string } {
+  if (!dateStr) return { label: "", color: "" };
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  if (diff <= 0) return { label: "오늘", color: "text-emerald-600 bg-emerald-50" };
+  if (diff === 1) return { label: "어제", color: "text-blue-600 bg-blue-50" };
+  if (diff <= 3) return { label: `${diff}일 전`, color: "text-blue-600 bg-blue-50" };
+  return { label: `${diff}일 전`, color: "text-slate-500 bg-slate-50" };
+}
+
+function formatTraffic(traffic: string): { label: string; color: string } {
+  if (!traffic) return { label: "급상승", color: "text-amber-600" };
+  const num = parseInt(traffic.replace(/[^0-9]/g, ""), 10);
+  if (isNaN(num)) return { label: traffic, color: "text-slate-400" };
+  const formatted = num.toLocaleString();
+  if (num >= 1000) return { label: `🔥 +${formatted}`, color: "text-red-500" };
+  if (num >= 500) return { label: `▲ +${formatted}`, color: "text-emerald-600" };
+  return { label: `▲ +${formatted}`, color: "text-emerald-500" };
+}
 interface SnsContent { summary: string; instagram: string; blog: string; twitter: string; youtube?: string }
 interface BlogPost { title: string; slug?: string; content: string; category: string; tags: string[]; excerpt: string; imageAlt?: string }
 
@@ -123,7 +142,10 @@ export default function TrendPage() {
             <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="block p-4 bg-white rounded-xl border border-slate-200 hover:shadow-sm">
               <p className="font-semibold text-slate-900 text-sm mb-1">{a.title}</p>
               <p className="text-xs text-slate-500">{a.summary}</p>
-              {a.source && <p className="text-xs text-slate-400 mt-1">{a.source}</p>}
+              <div className="flex items-center gap-2 mt-1">
+                {a.source && <span className="text-xs text-slate-400">{a.source}</span>}
+                {a.publishedAt && (() => { const d = formatDate(a.publishedAt); return <span className={`text-xs px-1.5 py-0.5 rounded ${d.color}`}>{d.label}</span>; })()}
+              </div>
             </a>
           ))}
         </div>
@@ -210,7 +232,7 @@ export default function TrendPage() {
               <button key={kw.title} onClick={() => selectKeyword(kw.title)}
                 className={`flex items-center gap-3 p-4 rounded-xl border text-left transition-all ${selectedKeyword === kw.title ? "bg-slate-900 text-white border-slate-900" : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-md"}`}>
                 <span className={`text-lg font-bold w-8 text-center ${selectedKeyword === kw.title ? "text-white/60" : "text-slate-400"}`}>{i + 1}</span>
-                <div className="flex-1 min-w-0"><p className="font-semibold truncate">{kw.title}</p>{kw.traffic && <p className={`text-xs ${selectedKeyword === kw.title ? "text-white/60" : "text-slate-400"}`}>{kw.traffic}</p>}</div>
+                <div className="flex-1 min-w-0"><p className="font-semibold truncate">{kw.title}</p>{kw.traffic && (() => { const t = formatTraffic(kw.traffic); return <p className={`text-xs ${selectedKeyword === kw.title ? "text-white/60" : t.color}`}>{t.label}</p>; })()}</div>
               </button>
             ))}
           </div>

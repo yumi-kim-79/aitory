@@ -42,10 +42,22 @@ export async function POST(request: Request) {
 
       const message = await client.messages.create({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 1500,
+        max_tokens: 2500,
         messages: [{
           role: "user",
-          content: `키워드: ${keyword}\n${newsText ? `뉴스:\n${newsText}\n` : ""}아래 JSON으로 한국어 블로그 글 작성. JSON만 반환:\n{"title":"SEO 제목","slug":"영문-슬러그","content":"본문(## 소제목 3개, 800자+)","excerpt":"메타설명 160자","category":"IT/AI|K뷰티|K팝/한류|경제|글로벌|사회|인사이트","tags":["태그1","태그2","태그3","태그4","태그5"],"imageAlt":"이미지 alt"}`,
+          content: `키워드: ${keyword}
+${newsText ? `뉴스:\n${newsText}\n` : ""}
+아래 뉴스들을 바탕으로 깊이 있는 블로그 글 작성. JSON만 반환, 코드블록 없이:
+{"title":"SEO 제목 30~60자","slug":"영문-슬러그","content":"본문 마크다운","excerpt":"메타설명 160자","category":"IT/AI|K뷰티|K팝/한류|경제|글로벌|사회|인사이트","tags":["태그1","태그2","태그3","태그4","태그5"],"imageAlt":"이미지 alt"}
+
+content 작성 규칙:
+- 최소 1500자 이상
+- ## 소제목 4개 이상 (각 소제목 아래 200자+ 내용)
+- 뉴스 핵심 내용을 상세히 분석하고 배경 설명
+- 전문가적 인사이트와 전망 섹션 포함
+- 독자가 공유하고 싶은 유용한 정보 포함
+- [📸이미지: 설명] 이미지 위치 2곳 표시
+- 마지막에 관련 글 유도 문장 1개`,
         }],
       });
 

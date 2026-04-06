@@ -36,30 +36,34 @@ export async function POST(request: Request) {
           role: "user",
           content: `"${keyword}" 키워드로 한국 최신 뉴스를 검색해주세요.
 
-반드시 JSON 형식으로만 응답하세요. 응답은 반드시 { 로 시작해야 합니다.
+반드시 최근 7일 이내 최신 뉴스만 포함하세요.
+오늘(${new Date().toISOString().slice(0, 10)}) 기준 최신순 정렬.
+반드시 JSON 형식으로만 응답하세요. 응답은 반드시 { 로 시작.
 
-{
-  "articles": [
-    {
-      "title": "뉴스 제목",
-      "source": "언론사",
-      "summary": "1~2줄 요약",
-      "url": "뉴스 URL"
-    }
-  ]
-}
+{"articles":[{"title":"뉴스 제목","source":"언론사","summary":"1~2줄 요약","url":"뉴스 URL","publishedAt":"YYYY-MM-DD"}]}
 
-최신 뉴스 3~5개를 찾아주세요. URL은 실제 존재하는 뉴스 URL이어야 합니다.`,
+최신 뉴스 3~5개. URL은 실제 존재하는 뉴스 URL이어야 합니다.`,
         },
       ],
     });
 
-    // 마지막 text 블록에서 JSON 추출
     const textBlock = message.content.filter((b) => b.type === "text").pop();
     const responseText = textBlock?.type === "text" ? textBlock.text : "";
+
+    // cite 태그 제거
+    const clean = (s: string) => s.replace(/<cite[^>]*>/g, "").replace(/<\/cite>/g, "").trim();
+
     let result;
     try {
-      result = JSON.parse(extractJSON(responseText));
+      result = JSON.parse(extractJSON(clean(responseText)));
+      if (result.articles) {
+        result.articles = result.articles.map((a: Record<string, string>) => ({
+          ...a,
+          title: clean(a.title || ""),
+          summary: clean(a.summary || ""),
+          source: clean(a.source || ""),
+        }));
+      }
     } catch {
       result = { articles: [] };
     }

@@ -217,3 +217,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-06 | 블로그 생성 504 근본 해결 - system 프롬프트 제거→user 인라인, max_tokens 1500, SNS max_tokens 1000 |
 | 2026-04-06 | 블로그 생성 클라이언트 직접 호출로 504 완전 해결 - dangerouslyAllowBrowser, deduct-credits API 분리 |
 | 2026-04-06 | 블로그 생성 서버 방식 복원 - 클라이언트 호출 롤백, ANTHROPIC_API_KEY 재등록, NEXT_PUBLIC 키 삭제 |
+| 2026-04-06 | 뉴스 cite태그 제거, 날짜표시(오늘/어제/N일전), 검색량 증감 UI(🔥/▲), 블로그 글 1500자+ 풍부하게 |
