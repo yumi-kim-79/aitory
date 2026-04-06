@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { verifyToken } from "@/lib/middleware";
+import { useCredits } from "@/lib/credits";
 
 const client = new Anthropic();
 
@@ -14,6 +16,12 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
+    // 크레딧 차감 (1 크레딧)
+    const decoded = await verifyToken(request);
+    if (!decoded) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    const ok = await useCredits(decoded.userId, 1, "트렌드 뉴스 검색");
+    if (!ok) return Response.json({ error: "크레딧이 부족합니다. 요금제를 업그레이드해주세요." }, { status: 402 });
+
     const { keyword } = (await request.json()) as { keyword: string };
     if (!keyword?.trim()) {
       return Response.json({ error: "키워드를 입력해주세요." }, { status: 400 });

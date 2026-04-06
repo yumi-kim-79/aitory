@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { verifyToken } from "@/lib/middleware";
+import { useCredits } from "@/lib/credits";
 
 const client = new Anthropic();
 
@@ -14,6 +16,10 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
+    // 크레딧 차감
+    const decoded = await verifyToken(request);
+    if (!decoded) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
+
     const { keyword, mode, articles } = (await request.json()) as {
       keyword: string;
       mode: "sns" | "blog";
@@ -24,12 +30,15 @@ export async function POST(request: Request) {
       return Response.json({ error: "키워드를 입력해주세요." }, { status: 400 });
     }
 
+    const credits = mode === "blog" ? 3 : 2;
+    const ok = await useCredits(decoded.userId, credits, mode === "blog" ? "AI 블로그 글 생성" : "AI SNS 콘텐츠 생성");
+    if (!ok) return Response.json({ error: "크레딧이 부족합니다. 요금제를 업그레이드해주세요." }, { status: 402 });
+
     const newsContext = articles?.length
       ? `\n관련 뉴스:\n${articles.map((a, i) => `${i + 1}. ${a.title} — ${a.summary}`).join("\n")}`
       : "";
 
     if (mode === "blog") {
-      // 정치/선거 키워드 필터링
       if (/정치|선거|탄핵|대통령|정당|국회|여당|야당|민주당|국민의힘/.test(keyword)) {
         return Response.json({ error: "정치/선거 관련 주제는 작성할 수 없습니다." }, { status: 400 });
       }
