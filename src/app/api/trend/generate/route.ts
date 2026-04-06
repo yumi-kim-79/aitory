@@ -64,8 +64,13 @@ content: <h2> 4개+, 각 300자+, <p><strong><ul><li> 사용, 내부링크 1개,
 
       const responseText = message.content[0].type === "text" ? message.content[0].text : "";
       let result;
-      try { result = JSON.parse(extractJSON(responseText)); }
-      catch { return Response.json({ error: "AI 응답 처리 실패. 다시 시도해주세요." }, { status: 502 }); }
+      try {
+        const jsonStr = extractJSON(responseText);
+        result = JSON.parse(jsonStr);
+      } catch (parseErr) {
+        console.error("[generate/blog] JSON 파싱 실패:", responseText.slice(0, 500));
+        return Response.json({ error: "AI 응답 처리 실패. 다시 시도해주세요. (크레딧 미차감)" }, { status: 502 });
+      }
       if (result.error) return Response.json({ error: result.error }, { status: 400 });
 
       // excerpt 강제 150자 truncate
@@ -89,15 +94,20 @@ content: <h2> 4개+, 각 300자+, <p><strong><ul><li> 사용, 내부링크 1개,
 
     const responseText = message.content[0].type === "text" ? message.content[0].text : "";
     let result;
-    try { result = JSON.parse(extractJSON(responseText)); }
-    catch { return Response.json({ error: "AI 응답 처리 실패" }, { status: 502 }); }
+    try {
+      result = JSON.parse(extractJSON(responseText));
+    } catch {
+      console.error("[generate/sns] JSON 파싱 실패:", responseText.slice(0, 500));
+      return Response.json({ error: "AI 응답 처리 실패 (크레딧 미차감)" }, { status: 502 });
+    }
 
     // 성공 시에만 크레딧 차감
     await useCredits(decoded.userId, credits, "AI SNS 콘텐츠 생성");
     return Response.json(result);
   } catch (error) {
-    // 실패 시 크레딧 차감 안 함
     const msg = error instanceof Error ? error.message : "알 수 없는 오류";
-    return Response.json({ error: `생성 실패 (크레딧 미차감): ${msg}` }, { status: 500 });
+    console.error("[generate] 에러:", msg);
+    const status = msg.includes("timeout") || msg.includes("504") ? 504 : 500;
+    return Response.json({ error: `생성 실패 (크레딧 미차감): ${msg}` }, { status });
   }
 }
