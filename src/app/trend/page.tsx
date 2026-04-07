@@ -54,6 +54,7 @@ export default function TrendPage() {
   const [apiError, setApiError] = useState("");
   const [autoPublishing, setAutoPublishing] = useState(false);
   const [autoCooldown, setAutoCooldown] = useState(false);
+  const [autoImagePublishing, setAutoImagePublishing] = useState(false);
   const [autoResults, setAutoResults] = useState<{ keyword: string; ok?: boolean; success?: boolean; postUrl?: string; wpUrl?: string; error?: string }[]>([]);
 
   const [copied, setCopied] = useState("");
@@ -314,11 +315,10 @@ export default function TrendPage() {
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-6">
               <h2 className="text-lg font-bold text-slate-900 mb-4">🤖 자동 발행 시스템</h2>
               <div className="space-y-3 text-sm text-slate-600 mb-6">
-                <p>매일 <strong>09:00</strong>, <strong>15:00</strong> (KST) 자동 발행</p>
-                <p>트렌드 TOP 15 키워드 수집 → Claude가 K-콘텐츠 중심 분류 → 5개 선정</p>
-                <p>K-콘텐츠 50%+: <strong>K-연예/한류</strong>, <strong>K-스포츠</strong> 우선 선정</p>
-                <p>나머지: 경제/비즈니스, 사회/생활, IT/과학에서 선정</p>
-                <p>뉴스 수집 → AI 블로그 글 → DALL-E 이미지 → WordPress 자동 발행</p>
+                <p>매일 <strong>09:00</strong>, <strong>15:00</strong> (KST) 2단계 자동 발행</p>
+                <p><strong>1단계</strong> (09:00/15:00): 키워드 수집 → AI 블로그 글 → WP <span className="text-amber-600 font-medium">draft</span> 저장</p>
+                <p><strong>2단계</strong> (09:05/15:05): DALL-E 이미지 생성 → WP 이미지 업로드 → <span className="text-emerald-600 font-medium">publish</span></p>
+                <p>K-콘텐츠 50%+: <strong>K-연예/한류</strong>(2), <strong>K-스포츠</strong>(1) + 일반(2)</p>
                 <p className="text-red-500">정치/선거/탄핵 키워드는 자동 제외됩니다.</p>
               </div>
               <button
@@ -360,7 +360,26 @@ export default function TrendPage() {
                 disabled={autoPublishing || autoCooldown}
                 className="w-full py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 disabled:bg-purple-300 flex items-center justify-center gap-2"
               >
-                {autoPublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />요청 중...</> : autoCooldown ? "발행 중... (WordPress에서 1~3분 후 확인)" : "🚀 지금 즉시 자동 발행"}
+                {autoPublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />요청 중...</> : autoCooldown ? "1단계 draft 저장 중..." : "🚀 1단계: Draft 저장 (글만)"}
+              </button>
+              <button
+                onClick={async () => {
+                  setAutoImagePublishing(true); setAutoResults([]);
+                  try {
+                    const token = await getIdToken();
+                    if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); return; }
+                    const res = await fetch("/api/trend/trigger-publish-image", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30000) });
+                    const data = await res.json();
+                    if (!res.ok) { setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]); }
+                    else if (data.message) { setAutoResults([{ keyword: "이미지 생성 시작", success: true, error: data.message }]); }
+                  } catch (err) {
+                    setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
+                  } finally { setAutoImagePublishing(false); }
+                }}
+                disabled={autoImagePublishing}
+                className="w-full py-3 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 disabled:bg-amber-300 flex items-center justify-center gap-2 mt-3"
+              >
+                {autoImagePublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />요청 중...</> : "🖼️ 2단계: 이미지 생성 + Publish"}
               </button>
             </div>
 
