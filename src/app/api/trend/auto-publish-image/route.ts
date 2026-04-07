@@ -16,20 +16,39 @@ interface ImageResult {
 // ────────────────────────────────────────────
 // DALL-E 3 이미지 생성
 // ────────────────────────────────────────────
+const CATEGORY_STYLES: Record<string, string> = {
+  'K-연예/한류': 'Vibrant K-pop concert stage with dramatic lighting, colorful LED backdrop, modern Korean entertainment aesthetic, cinematic quality',
+  'K-스포츠': 'Dynamic sports action scene with Korean flag elements, stadium atmosphere, dramatic lighting, motion blur effect',
+  '경제/비즈니스': 'Modern financial district skyline, stock market data visualization, sleek corporate aesthetic, blue and gold color scheme',
+  '사회/생활': 'Clean modern lifestyle photography style, warm natural lighting, Korean urban environment',
+  'IT/과학': 'Futuristic technology visualization, glowing circuit patterns, blue purple gradient, AI neural network aesthetic',
+};
+
+const QUALITY_SUFFIX = 'no human faces, no text, no letters, professional blog thumbnail, highly detailed, 4K quality, professional photography, sharp focus, perfect composition, magazine cover quality';
+
 async function generateImage(keyword: string, category: string): Promise<string | null> {
   try {
+    const styleHint = CATEGORY_STYLES[category] || 'clean and modern professional blog thumbnail style';
+
     const promptRes = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 200,
+      max_tokens: 300,
       messages: [{
         role: 'user',
-        content: `Create a DALL-E 3 image prompt in English for a blog about "${keyword}" (category: ${category}).
-Requirements: no human faces, professional blog thumbnail style, clean and modern, relevant to the topic.
+        content: `Create a DALL-E 3 image prompt in English for a blog about "${keyword}".
+
+Style reference: ${styleHint}
+
+Requirements:
+- Incorporate the specific topic "${keyword}" into the visual concept
+- ${QUALITY_SUFFIX}
+- Do NOT include any text, words, or letters in the image
+
 Respond with only the English prompt, no other text.`,
       }],
     });
     const dallePrompt = promptRes.content[0].type === 'text' ? promptRes.content[0].text.trim() : keyword;
-    console.log(`[image] DALL-E 프롬프트: ${dallePrompt.slice(0, 100)}`);
+    console.log(`[image] DALL-E 프롬프트: ${dallePrompt.slice(0, 150)}`);
 
     const { OpenAI } = await import('openai');
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -37,7 +56,7 @@ Respond with only the English prompt, no other text.`,
       model: 'dall-e-3',
       prompt: dallePrompt,
       size: '1792x1024',
-      quality: 'standard',
+      quality: 'hd',
       style: 'natural',
       n: 1,
     });

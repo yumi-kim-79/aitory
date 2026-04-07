@@ -269,3 +269,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-07 | trigger-publish fire-and-forget → 직접 await 방식으로 변경, maxDuration 300, 실제 결과 반환 |
 | 2026-04-07 | 블로그 생성 JSON 파싱 실패 수정 - max_tokens 2500, 잘린 JSON 복구 로직, 프롬프트 800자+ 축소 |
 | 2026-04-07 | SEO description 150자 강제(excerpt+_surerank+_yoast), 블로그 내용 1500자+로 복원 |
+| 2026-04-07 | DALL-E 이미지 품질 개선 - 카테고리별 스타일 프롬프트, quality hd, 상세 품질 지시어 추가 |
