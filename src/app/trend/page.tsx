@@ -334,15 +334,17 @@ export default function TrendPage() {
                     const res = await fetch("/api/trend/trigger-publish", {
                       method: "POST",
                       headers: { Authorization: `Bearer ${token}` },
-                      signal: AbortSignal.timeout(290000),
+                      signal: AbortSignal.timeout(30000),
                     });
                     console.log("[auto] 3. 응답 수신:", res.status);
                     const data = await res.json();
                     console.log("[auto] 4. 응답 데이터:", data);
                     if (!res.ok) {
                       setAutoResults([{ keyword: "서버 오류", ok: false, error: data.error || `HTTP ${res.status}` }]);
+                    } else if (data.message) {
+                      setAutoResults([{ keyword: "발행 시작", success: true, error: data.message }]);
                     } else {
-                      setAutoResults(data.results || [{ keyword: "완료", ok: true, wpUrl: "", error: data.error }]);
+                      setAutoResults(data.results || [{ keyword: "완료", success: true }]);
                     }
                   } catch (err) {
                     const msg = err instanceof Error ? err.message : String(err);
