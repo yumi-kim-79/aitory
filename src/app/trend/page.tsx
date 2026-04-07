@@ -53,7 +53,7 @@ export default function TrendPage() {
   const [publishStatus, setPublishStatus] = useState<"draft" | "publish">("draft");
   const [apiError, setApiError] = useState("");
   const [autoPublishing, setAutoPublishing] = useState(false);
-  const [autoResults, setAutoResults] = useState<{ keyword: string; ok: boolean; postUrl?: string; error?: string }[]>([]);
+  const [autoResults, setAutoResults] = useState<{ keyword: string; ok?: boolean; success?: boolean; postUrl?: string; wpUrl?: string; error?: string }[]>([]);
 
   const [copied, setCopied] = useState("");
 
@@ -323,7 +323,8 @@ export default function TrendPage() {
                 onClick={async () => {
                   setAutoPublishing(true); setAutoResults([]);
                   try {
-                    const res = await fetch("/api/trend/auto-publish", { headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ""}` } });
+                    const token = await getIdToken();
+                    const res = await fetch("/api/trend/trigger-publish", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
                     const data = await res.json();
                     setAutoResults(data.results || []);
                   } catch { setAutoResults([{ keyword: "에러", ok: false, error: "API 호출 실패" }]); }
@@ -340,10 +341,10 @@ export default function TrendPage() {
               <div className="space-y-3">
                 <h3 className="text-sm font-semibold text-slate-700">발행 결과</h3>
                 {autoResults.map((r, i) => (
-                  <div key={i} className={`p-4 rounded-xl border ${r.ok ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+                  <div key={i} className={`p-4 rounded-xl border ${r.success || r.ok ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-sm">{r.ok ? "✅" : "❌"} {r.keyword}</span>
-                      {r.postUrl && <a href={r.postUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">{r.postUrl}</a>}
+                      <span className="font-medium text-sm">{r.success || r.ok ? "✅" : "❌"} {r.keyword}</span>
+                      {(r.wpUrl || r.postUrl) && <a href={r.wpUrl || r.postUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">{r.wpUrl || r.postUrl}</a>}
                     </div>
                     {r.error && <p className="text-xs text-red-600 mt-1">{r.error}</p>}
                   </div>
