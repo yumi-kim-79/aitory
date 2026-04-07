@@ -368,7 +368,8 @@ export default function TrendPage() {
                     const res = await fetch("/api/trend/trigger-publish-image", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(280000) });
                     const data = await res.json();
                     if (!res.ok) { setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]); }
-                    else if (data.message) { setAutoResults([{ keyword: "이미지 생성 시작", success: true, error: data.message }]); }
+                    else if (data.results?.length) { setAutoResults(data.results.map((r: { keyword: string; success: boolean; error?: string }) => ({ keyword: r.keyword, success: r.success, ok: r.success, error: r.error }))); }
+                    else if (data.message) { setAutoResults([{ keyword: "완료", success: true, error: data.message }]); }
                   } catch (err) {
                     setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
                   } finally { setAutoImagePublishing(false); }
@@ -376,7 +377,7 @@ export default function TrendPage() {
                 disabled={autoImagePublishing}
                 className="w-full py-3 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 disabled:bg-amber-300 flex items-center justify-center gap-2 mt-3"
               >
-                {autoImagePublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />요청 중...</> : "🖼️ 2단계: 이미지 생성 + Publish"}
+                {autoImagePublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />이미지 생성 중... (2~4분)</> : "🖼️ 2단계: 이미지 생성 + Publish"}
               </button>
             </div>
 

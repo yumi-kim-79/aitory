@@ -131,7 +131,7 @@ async function isDuplicate(keyword: string): Promise<boolean> {
 // ────────────────────────────────────────────
 // K-콘텐츠 키워드 수집
 // ────────────────────────────────────────────
-async function fetchKContentKeywords(): Promise<SelectedKeyword[]> {
+async function fetchKContentKeywords(batchKeywords: Set<string>): Promise<SelectedKeyword[]> {
   const kQueries = [
     { query: 'K-드라마 OR K-팝 OR 아이돌 OR 한류 OR 미스트롯 OR 미스터트롯', category: 'K-연예/한류', count: 2 },
     { query: '손흥민 OR 류현진 OR 한국축구 OR 한국야구 OR 김민재 OR KBO OR K리그', category: 'K-스포츠', count: 1 },
@@ -162,7 +162,9 @@ ${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
       if (match) {
         const keywords: string[] = JSON.parse(match[0]);
         for (const kw of keywords.slice(0, count)) {
+          if (batchKeywords.has(kw)) { console.log(`[K-콘텐츠] 배치 내 중복 스킵: ${kw}`); continue; }
           if (await isDuplicate(kw)) { console.log(`[K-콘텐츠] 중복 스킵: ${kw}`); continue; }
+          batchKeywords.add(kw);
           const news = await fetchNews(kw);
           results.push({ keyword: kw, category, news });
         }
@@ -177,7 +179,7 @@ ${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 // ────────────────────────────────────────────
 // 일반 카테고리 키워드 수집 (트렌드 우선 + RSS 보완)
 // ────────────────────────────────────────────
-async function fetchGeneralKeywords(): Promise<SelectedKeyword[]> {
+async function fetchGeneralKeywords(batchKeywords: Set<string>): Promise<SelectedKeyword[]> {
   const categories = [
     { name: '경제/비즈니스', rssQuery: '주식 OR 부동산 OR 경제 OR 환율' },
     { name: '사회/생활', rssQuery: '생활 OR 건강 OR 날씨 OR 교육' },
@@ -220,7 +222,8 @@ async function fetchGeneralKeywords(): Promise<SelectedKeyword[]> {
     const fromTrend = classified.find(
       (c) => c.category === cat.name && !results.some((r) => r.keyword === c.keyword)
     );
-    if (fromTrend && !(await isDuplicate(fromTrend.keyword))) {
+    if (fromTrend && !batchKeywords.has(fromTrend.keyword) && !(await isDuplicate(fromTrend.keyword))) {
+      batchKeywords.add(fromTrend.keyword);
       const news = await fetchNews(fromTrend.keyword);
       results.push({ keyword: fromTrend.keyword, category: cat.name, news });
       continue;
@@ -240,7 +243,8 @@ ${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
       const match = text.match(/\[[\s\S]*\]/);
       if (match) {
         const kw = JSON.parse(match[0])[0];
-        if (kw && !(await isDuplicate(kw))) {
+        if (kw && !batchKeywords.has(kw) && !(await isDuplicate(kw))) {
+          batchKeywords.add(kw);
           const news = await fetchNews(kw);
           results.push({ keyword: kw, category: cat.name, news });
         }
@@ -433,11 +437,13 @@ export async function GET(req: NextRequest) {
   const results: PublishResult[] = [];
 
   try {
+    const batchKeywords = new Set<string>();
+
     console.log('[auto-publish] 1단계: K-콘텐츠 수집...');
-    const kKeywords = await fetchKContentKeywords();
+    const kKeywords = await fetchKContentKeywords(batchKeywords);
 
     console.log('[auto-publish] 1단계: 일반 카테고리 수집...');
-    const generalKeywords = await fetchGeneralKeywords();
+    const generalKeywords = await fetchGeneralKeywords(batchKeywords);
 
     const allKeywords = [...kKeywords, ...generalKeywords];
     console.log('[auto-publish] 전체 선정:', allKeywords.map((k) => `${k.category}: ${k.keyword}`));
