@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { adminDb } from '@/lib/firebase-admin';
 
 export const maxDuration = 300;
 
@@ -14,17 +15,12 @@ function extractJSON(text: string): string {
 }
 
 // ────────────────────────────────────────────
-// 카테고리 정의 (K-콘텐츠 중심)
+// 타입
 // ────────────────────────────────────────────
-const K_CATEGORIES = ['K-연예/한류', 'K-스포츠'] as const;
-const GENERAL_CATEGORIES = ['경제/비즈니스', '사회/생활', 'IT/과학'] as const;
-const ALL_CATEGORIES = [...K_CATEGORIES, ...GENERAL_CATEGORIES] as const;
-type Category = (typeof ALL_CATEGORIES)[number];
-
-interface TrendKeyword {
+interface SelectedKeyword {
   keyword: string;
-  category: Category | '정치' | '기타';
-  rank: number;
+  category: string;
+  news: string;
 }
 
 interface PublishResult {
@@ -36,132 +32,35 @@ interface PublishResult {
 }
 
 // ────────────────────────────────────────────
-// 1. 트렌드 키워드 수집 (기존 API 재활용)
+// RSS 뉴스 제목 수집 헬퍼
 // ────────────────────────────────────────────
-async function fetchTrendKeywords(): Promise<{ keywords: string[]; debug: { source: string; error?: string } }> {
-  const baseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : 'https://aitory.vercel.app';
-
-  const url = `${baseUrl}/api/trend/fetch`;
-  console.log(`[fetchTrends] 내부 API 호출: ${url}`);
-
+async function fetchRssTitles(query: string, count = 5): Promise<string[]> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    console.log(`[fetchTrends] 응답 status: ${res.status}`);
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error(`[fetchTrends] API 에러:`, text.slice(0, 300));
-      return { keywords: [], debug: { source: url, error: `HTTP ${res.status}: ${text.slice(0, 200)}` } };
-    }
-
-    const data = await res.json();
-    const keywords = (data.keywords || []).map((k: { title: string }) => k.title).slice(0, 15);
-    console.log(`[fetchTrends] 키워드 ${keywords.length}개 수집:`, keywords);
-
-    return { keywords, debug: { source: url } };
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[fetchTrends] 에러:`, msg);
-    return { keywords: [], debug: { source: url, error: msg } };
+    const res = await fetch(
+      `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+    if (!res.ok) return [];
+    const xml = await res.text();
+    const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, count);
+    return items.map((m) => {
+      const title = m[1].match(/<title>(.*?)<\/title>/)?.[1] ?? '';
+      return title.replace(/<[^>]+>/g, '').trim();
+    }).filter(Boolean);
+  } catch {
+    return [];
   }
 }
 
 // ────────────────────────────────────────────
-// 2. Claude로 키워드 카테고리 분류 (K-콘텐츠 기준)
-// ────────────────────────────────────────────
-async function classifyKeywords(keywords: string[]): Promise<TrendKeyword[]> {
-  const prompt = `다음 키워드들을 각각 아래 카테고리 중 하나로 분류해줘.
-카테고리: K-연예/한류, K-스포츠, 경제/비즈니스, 사회/생활, IT/과학, 정치, 기타
-
-분류 기준:
-- K-드라마, K-팝, 한국 연예인, 미스트롯/미스터트롯, 한류, 한국 영화/드라마/음악, 한국 문화 → K-연예/한류
-- 한국 스포츠 선수, KBO/KBL/K리그, 한국 대표팀, 한국 스포츠 이슈 → K-스포츠
-- 그 외 일반 스포츠(해외 스포츠 등) → 기타
-- 정치/선거/탄핵/정당 → 정치
-
-키워드 목록:
-${keywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}
-
-응답 형식(JSON 배열만, 다른 텍스트 없이):
-[
-  {"keyword": "키워드", "category": "카테고리명"},
-  ...
-]`;
-
-  const res = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 800,
-    messages: [{ role: 'user', content: prompt }],
-  });
-
-  const text = res.content[0].type === 'text' ? res.content[0].text : '';
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) return keywords.map((k, i) => ({ keyword: k, category: '기타' as const, rank: i + 1 }));
-
-  const parsed: { keyword: string; category: string }[] = JSON.parse(jsonMatch[0]);
-  return parsed.map((item, i) => ({
-    keyword: item.keyword,
-    category: item.category as TrendKeyword['category'],
-    rank: i + 1,
-  }));
-}
-
-// ────────────────────────────────────────────
-// 3. K-콘텐츠 50%+ 비율로 선정
-// ────────────────────────────────────────────
-function selectKeywords(classified: TrendKeyword[]): TrendKeyword[] {
-  // 정치 제외
-  const filtered = classified.filter((k) => k.category !== '정치');
-
-  const selected: TrendKeyword[] = [];
-
-  // 1단계: K-콘텐츠 카테고리에서 최대 3개 선정
-  const kUsed = new Set<string>();
-  for (const item of filtered) {
-    if ((K_CATEGORIES as readonly string[]).includes(item.category) && !kUsed.has(item.category)) {
-      selected.push(item);
-      kUsed.add(item.category);
-    }
-    if (kUsed.size >= 2) break; // K-연예/한류, K-스포츠 각 1개
-  }
-  // K-연예/한류에서 추가 1개 (다른 키워드)
-  if (selected.length < 3) {
-    for (const item of filtered) {
-      if (item.category === 'K-연예/한류' && !selected.includes(item)) {
-        selected.push(item);
-        break;
-      }
-    }
-  }
-
-  // 2단계: 일반 카테고리에서 2개 선정
-  const generalUsed = new Set<string>();
-  for (const item of filtered) {
-    if ((GENERAL_CATEGORIES as readonly string[]).includes(item.category) && !generalUsed.has(item.category)) {
-      selected.push(item);
-      generalUsed.add(item.category);
-    }
-    if (selected.length >= 5) break;
-  }
-
-  console.log(`[selectKeywords] K-콘텐츠: ${selected.filter(s => (K_CATEGORIES as readonly string[]).includes(s.category)).length}개, 일반: ${selected.filter(s => (GENERAL_CATEGORIES as readonly string[]).includes(s.category)).length}개`);
-
-  return selected;
-}
-
-// ────────────────────────────────────────────
-// 4. RSS 뉴스 수집
+// RSS 뉴스 본문 수집 (블로그 작성용)
 // ────────────────────────────────────────────
 async function fetchNews(keyword: string): Promise<string> {
   try {
     const query = encodeURIComponent(keyword);
     const res = await fetch(
       `https://news.google.com/rss/search?q=${query}&hl=ko&gl=KR&ceid=KR:ko`,
-      { next: { revalidate: 0 } }
+      { signal: AbortSignal.timeout(10000) }
     );
     const xml = await res.text();
     const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 5);
@@ -177,13 +76,231 @@ async function fetchNews(keyword: string): Promise<string> {
 }
 
 // ────────────────────────────────────────────
-// 5. Claude 블로그 글 생성
+// 중복 체크 (Firestore 7일 이내)
+// ────────────────────────────────────────────
+async function isDuplicate(keyword: string): Promise<boolean> {
+  try {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const snap = await adminDb
+      .collection('aitory_published_keywords')
+      .where('publishedAt', '>=', sevenDaysAgo)
+      .get();
+
+    for (const doc of snap.docs) {
+      const prev = doc.data().keyword as string;
+      if (!prev) continue;
+      // 동일 키워드
+      if (prev === keyword) return true;
+      // 70% 이상 글자 겹침
+      const overlap = [...keyword].filter((c) => prev.includes(c)).length;
+      const ratio = overlap / Math.max(keyword.length, prev.length);
+      if (ratio >= 0.7) {
+        console.log(`[중복] "${keyword}" ≈ "${prev}" (${(ratio * 100).toFixed(0)}%)`);
+        return true;
+      }
+    }
+    return false;
+  } catch (e) {
+    console.error('[isDuplicate] 에러:', e instanceof Error ? e.message : e);
+    return false; // 에러 시 발행 허용
+  }
+}
+
+// ────────────────────────────────────────────
+// 발행 이력 저장
+// ────────────────────────────────────────────
+async function savePublished(keyword: string, category: string, wpUrl: string) {
+  try {
+    await adminDb.collection('aitory_published_keywords').add({
+      keyword,
+      category,
+      wpUrl,
+      publishedAt: new Date(),
+    });
+  } catch (e) {
+    console.error('[savePublished] 에러:', e instanceof Error ? e.message : e);
+  }
+}
+
+// ────────────────────────────────────────────
+// K-콘텐츠 키워드 수집 (RSS 최신순 → Claude 대표 키워드 선정)
+// ────────────────────────────────────────────
+async function fetchKContentKeywords(): Promise<SelectedKeyword[]> {
+  const kQueries: { query: string; category: string; count: number }[] = [
+    { query: 'K-드라마 OR K-팝 OR 아이돌 OR 한류 OR 미스트롯 OR 미스터트롯', category: 'K-연예/한류', count: 2 },
+    { query: '손흥민 OR 류현진 OR 한국축구 OR 한국야구 OR 김민재 OR KBO OR K리그', category: 'K-스포츠', count: 1 },
+  ];
+
+  const results: SelectedKeyword[] = [];
+
+  for (const { query, category, count } of kQueries) {
+    console.log(`[K-콘텐츠] ${category} RSS 수집 중...`);
+    const titles = await fetchRssTitles(query, 10);
+    console.log(`[K-콘텐츠] ${category} 뉴스 ${titles.length}개:`, titles.slice(0, 5));
+
+    if (titles.length === 0) continue;
+
+    // Claude로 대표 키워드 선정
+    const prompt = `아래 뉴스 제목 중에서 블로그 글을 쓰기 좋은 핵심 키워드를 ${count}개 선정해줘.
+카테고리: ${category}
+
+뉴스 제목:
+${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+
+선정 기준:
+- 구체적인 인물/이벤트/작품명 포함
+- 검색량이 높을 것 같은 키워드
+- 정치/선거 관련 제외
+
+응답 형식(JSON 배열만):
+["키워드1"${count > 1 ? ', "키워드2"' : ''}]`;
+
+    try {
+      const res = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 200,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const text = res.content[0].type === 'text' ? res.content[0].text : '';
+      const match = text.match(/\[[\s\S]*\]/);
+      if (match) {
+        const keywords: string[] = JSON.parse(match[0]);
+        for (const kw of keywords.slice(0, count)) {
+          // 중복 체크
+          if (await isDuplicate(kw)) {
+            console.log(`[K-콘텐츠] 중복 스킵: ${kw}`);
+            continue;
+          }
+          const news = await fetchNews(kw);
+          results.push({ keyword: kw, category, news });
+        }
+      }
+    } catch (e) {
+      console.error(`[K-콘텐츠] ${category} Claude 에러:`, e instanceof Error ? e.message : e);
+    }
+  }
+
+  console.log(`[K-콘텐츠] 최종 ${results.length}개 선정`);
+  return results;
+}
+
+// ────────────────────────────────────────────
+// 일반 카테고리 키워드 수집 (트렌드 우선 + RSS 보완)
+// ────────────────────────────────────────────
+async function fetchGeneralKeywords(): Promise<SelectedKeyword[]> {
+  const categories = [
+    { name: '경제/비즈니스', rssQuery: '주식 OR 부동산 OR 경제 OR 환율' },
+    { name: '사회/생활', rssQuery: '생활 OR 건강 OR 날씨 OR 교육' },
+    { name: 'IT/과학', rssQuery: 'AI OR IT OR 기술 OR 과학 OR 스마트폰' },
+  ];
+
+  // 1. 트렌드 TOP 10 수집
+  const baseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'https://aitory.vercel.app';
+
+  let trendKeywords: string[] = [];
+  try {
+    const res = await fetch(`${baseUrl}/api/trend/fetch`, { signal: AbortSignal.timeout(15000) });
+    if (res.ok) {
+      const data = await res.json();
+      trendKeywords = (data.keywords || []).map((k: { title: string }) => k.title).slice(0, 10);
+    }
+  } catch {}
+  console.log(`[일반] 트렌드 키워드 ${trendKeywords.length}개:`, trendKeywords);
+
+  // 2. 트렌드 키워드를 카테고리 분류
+  let classified: { keyword: string; category: string }[] = [];
+  if (trendKeywords.length > 0) {
+    try {
+      const prompt = `다음 키워드들을 각각 아래 카테고리 중 하나로 분류해줘.
+카테고리: 경제/비즈니스, 사회/생활, IT/과학, 기타
+
+키워드 목록:
+${trendKeywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}
+
+응답 형식(JSON 배열만):
+[{"keyword": "키워드", "category": "카테고리명"}]`;
+
+      const res = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const text = res.content[0].type === 'text' ? res.content[0].text : '';
+      const match = text.match(/\[[\s\S]*\]/);
+      if (match) classified = JSON.parse(match[0]);
+    } catch {}
+  }
+
+  const results: SelectedKeyword[] = [];
+
+  for (const cat of categories) {
+    // 트렌드에서 해당 카테고리 찾기
+    const fromTrend = classified.find(
+      (c) => c.category === cat.name && !results.some((r) => r.keyword === c.keyword)
+    );
+
+    if (fromTrend) {
+      if (await isDuplicate(fromTrend.keyword)) {
+        console.log(`[일반] 트렌드 중복 스킵: ${fromTrend.keyword}`);
+      } else {
+        const news = await fetchNews(fromTrend.keyword);
+        results.push({ keyword: fromTrend.keyword, category: cat.name, news });
+        console.log(`[일반] 트렌드에서 선정: ${fromTrend.keyword} (${cat.name})`);
+        continue;
+      }
+    }
+
+    // RSS 보완
+    console.log(`[일반] ${cat.name} RSS 보완 수집 중...`);
+    const titles = await fetchRssTitles(cat.rssQuery, 7);
+    if (titles.length === 0) continue;
+
+    try {
+      const prompt = `아래 뉴스 제목 중에서 블로그 글을 쓰기 좋은 핵심 키워드를 1개 선정해줘.
+카테고리: ${cat.name}
+
+뉴스 제목:
+${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+
+응답 형식(JSON 배열만):
+["키워드"]`;
+
+      const res = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 100,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const text = res.content[0].type === 'text' ? res.content[0].text : '';
+      const match = text.match(/\[[\s\S]*\]/);
+      if (match) {
+        const kw = JSON.parse(match[0])[0];
+        if (kw && !(await isDuplicate(kw))) {
+          const news = await fetchNews(kw);
+          results.push({ keyword: kw, category: cat.name, news });
+          console.log(`[일반] RSS에서 선정: ${kw} (${cat.name})`);
+        }
+      }
+    } catch {}
+  }
+
+  console.log(`[일반] 최종 ${results.length}개 선정`);
+  return results;
+}
+
+// ────────────────────────────────────────────
+// Claude 블로그 글 생성
 // ────────────────────────────────────────────
 async function generateBlog(
   keyword: string,
   category: string,
   news: string
-): Promise<{ title: string; content: string; metaDesc: string; tags: string[]; slug?: string; excerpt?: string }> {
+): Promise<{ title: string; content: string; metaDesc: string; tags: string[]; slug?: string }> {
   const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 
   const prompt = `키워드: ${keyword}
@@ -222,12 +339,11 @@ content: <h2> 4개+, 각300자+, <p><strong><ul><li>, 전망/결론
     metaDesc,
     tags: parsed.tags || [],
     slug: parsed.slug,
-    excerpt: metaDesc,
   };
 }
 
 // ────────────────────────────────────────────
-// 6. DALL-E 3 이미지 생성 (타임아웃 강화)
+// DALL-E 3 이미지 생성
 // ────────────────────────────────────────────
 async function generateImage(keyword: string, category: string): Promise<string | null> {
   try {
@@ -268,7 +384,7 @@ Respond with only the English prompt, no other text.`,
 }
 
 // ────────────────────────────────────────────
-// 7. WP 포스팅 (이미지 포함)
+// WP 포스팅 (이미지 포함)
 // ────────────────────────────────────────────
 async function postToWordPress(params: {
   title: string;
@@ -385,7 +501,6 @@ async function postToWordPress(params: {
 // Cron 핸들러
 // ────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  // Bearer 인증
   const authHeader = req.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -394,38 +509,31 @@ export async function GET(req: NextRequest) {
   const results: PublishResult[] = [];
 
   try {
-    // 1. 트렌드 TOP 15 수집
-    console.log('[auto-publish] 트렌드 수집 중...');
-    const { keywords, debug: trendDebug } = await fetchTrendKeywords();
-    console.log('[auto-publish] 수집된 키워드:', keywords, '디버그:', trendDebug);
+    // 1. K-콘텐츠 키워드 수집 (RSS 최신순)
+    console.log('[auto-publish] K-콘텐츠 수집 중...');
+    const kKeywords = await fetchKContentKeywords();
 
-    if (keywords.length === 0) {
+    // 2. 일반 카테고리 키워드 수집 (트렌드 우선 + RSS 보완)
+    console.log('[auto-publish] 일반 카테고리 수집 중...');
+    const generalKeywords = await fetchGeneralKeywords();
+
+    const allKeywords = [...kKeywords, ...generalKeywords];
+    console.log('[auto-publish] 전체 선정:', allKeywords.map((k) => `${k.category}: ${k.keyword}`));
+
+    if (allKeywords.length === 0) {
       return NextResponse.json({
         success: false,
-        error: '트렌드 키워드 수집 실패 (0개)',
-        debugInfo: trendDebug,
+        error: '키워드 수집 실패 (0개)',
         results,
       });
     }
 
-    // 2. 카테고리 분류 (K-콘텐츠 기준)
-    console.log('[auto-publish] 카테고리 분류 중...');
-    const classified = await classifyKeywords(keywords);
-    console.log('[auto-publish] 분류 결과:', classified);
-
-    // 3. K-콘텐츠 50%+ 비율로 선정
-    const selected = selectKeywords(classified);
-    console.log('[auto-publish] 선정된 키워드:', selected);
-
-    // 4. 선정된 키워드별 순차 처리
-    for (const item of selected) {
-      const { keyword, category } = item;
+    // 3. 각 키워드별 순차 처리
+    for (const item of allKeywords) {
+      const { keyword, category, news } = item;
       console.log(`[auto-publish] 처리 중: ${keyword} (${category})`);
 
       try {
-        // 뉴스 수집
-        const news = await fetchNews(keyword);
-
         // 블로그 생성
         const blog = await generateBlog(keyword, category, news);
 
@@ -443,6 +551,9 @@ export async function GET(req: NextRequest) {
           keyword,
         });
 
+        // 발행 이력 저장
+        await savePublished(keyword, category, wpUrl);
+
         results.push({ keyword, category, success: true, wpUrl });
         console.log(`[auto-publish] 성공: ${keyword} → ${wpUrl}`);
       } catch (err) {
@@ -458,9 +569,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       publishedAt: new Date().toISOString(),
-      categoriesSelected: selected.map((s) => `${s.category}: ${s.keyword}`),
+      categoriesSelected: allKeywords.map((k) => `${k.category}: ${k.keyword}`),
       results,
-      debugInfo: { trendSource: trendDebug.source, keywordCount: keywords.length },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
