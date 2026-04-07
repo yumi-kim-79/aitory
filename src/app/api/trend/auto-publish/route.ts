@@ -34,15 +34,69 @@ interface PublishResult {
 // ────────────────────────────────────────────
 // 1. Google Trends RSS 수집 (TOP 15)
 // ────────────────────────────────────────────
-async function fetchTrendKeywords(): Promise<string[]> {
-  const res = await fetch(
+interface FetchDebug {
+  url: string;
+  status: number;
+  xmlLength: number;
+  xmlPreview: string;
+  cdataMatches: number;
+  plainTitleMatches: number;
+  method: string;
+}
+
+async function fetchTrendKeywords(): Promise<{ keywords: string[]; debug: FetchDebug }> {
+  const urls = [
     'https://trends.google.com/trends/trendingsearches/daily/rss?geo=KR',
-    { next: { revalidate: 0 } }
-  );
-  const xml = await res.text();
-  const matches = [...xml.matchAll(/<title><!\[CDATA\[([^\]]+)\]\]><\/title>/g)];
-  // 첫 번째는 피드 제목이므로 제외
-  return matches.slice(1, 16).map((m) => m[1].trim());
+    'https://trends.google.co.kr/trends/trendingsearches/daily/rss?geo=KR',
+  ];
+
+  for (const url of urls) {
+    try {
+      console.log(`[fetchTrends] 시도: ${url}`);
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
+        signal: AbortSignal.timeout(10000),
+      });
+      console.log(`[fetchTrends] 응답 status: ${res.status}`);
+      if (!res.ok) continue;
+
+      const xml = await res.text();
+      console.log(`[fetchTrends] XML 길이: ${xml.length}`);
+      console.log(`[fetchTrends] XML 앞 500자: ${xml.slice(0, 500)}`);
+
+      // 1차: CDATA 방식
+      const cdataMatches = [...xml.matchAll(/<title><!\[CDATA\[([^\]]+)\]\]><\/title>/g)];
+      console.log(`[fetchTrends] CDATA title 매치: ${cdataMatches.length}개`);
+
+      if (cdataMatches.length > 1) {
+        return {
+          keywords: cdataMatches.slice(1, 16).map((m) => m[1].trim()),
+          debug: { url, status: res.status, xmlLength: xml.length, xmlPreview: xml.slice(0, 300), cdataMatches: cdataMatches.length, plainTitleMatches: 0, method: 'cdata' },
+        };
+      }
+
+      // 2차: 일반 <title> 태그
+      const plainMatches = [...xml.matchAll(/<title>([^<]+)<\/title>/g)];
+      console.log(`[fetchTrends] plain title 매치: ${plainMatches.length}개`);
+
+      if (plainMatches.length > 1) {
+        return {
+          keywords: plainMatches.slice(1, 16).map((m) => m[1].trim()),
+          debug: { url, status: res.status, xmlLength: xml.length, xmlPreview: xml.slice(0, 300), cdataMatches: cdataMatches.length, plainTitleMatches: plainMatches.length, method: 'plain' },
+        };
+      }
+
+      // 매치 실패 시 다음 URL 시도 전 debug 저장
+      console.error(`[fetchTrends] 매치 실패, XML preview: ${xml.slice(0, 500)}`);
+    } catch (err) {
+      console.error(`[fetchTrends] ${url} 에러:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  return {
+    keywords: [],
+    debug: { url: 'all failed', status: 0, xmlLength: 0, xmlPreview: '', cdataMatches: 0, plainTitleMatches: 0, method: 'none' },
+  };
 }
 
 // ────────────────────────────────────────────
@@ -329,8 +383,17 @@ export async function GET(req: NextRequest) {
   try {
     // 1. 트렌드 TOP 15 수집
     console.log('[auto-publish] 트렌드 수집 중...');
-    const keywords = await fetchTrendKeywords();
-    console.log('[auto-publish] 수집된 키워드:', keywords);
+    const { keywords, debug: trendDebug } = await fetchTrendKeywords();
+    console.log('[auto-publish] 수집된 키워드:', keywords, '디버그:', trendDebug);
+
+    if (keywords.length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: '트렌드 키워드 수집 실패 (0개)',
+        debugInfo: trendDebug,
+        results,
+      });
+    }
 
     // 2. 카테고리 분류
     console.log('[auto-publish] 카테고리 분류 중...');
@@ -384,6 +447,7 @@ export async function GET(req: NextRequest) {
       publishedAt: new Date().toISOString(),
       categoriesSelected: selected.map((s) => `${s.category}: ${s.keyword}`),
       results,
+      debugInfo: { trendSource: trendDebug.url, trendMethod: trendDebug.method, keywordCount: keywords.length },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
