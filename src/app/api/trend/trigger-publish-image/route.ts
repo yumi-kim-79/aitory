@@ -1,4 +1,4 @@
-export const maxDuration = 30;
+export const maxDuration = 300;
 
 import { verifyToken } from "@/lib/middleware";
 import { getUserDoc } from "@/lib/auth";
@@ -23,23 +23,28 @@ export async function POST(request: Request) {
         : "https://aitory.vercel.app";
 
     const targetUrl = `${baseUrl}/api/trend/auto-publish-image`;
-    console.log("[trigger-image] 백그라운드 호출:", targetUrl);
+    console.log("[trigger-image] 직접 호출:", targetUrl);
 
-    fetch(targetUrl, {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 240000);
+
+    const res = await fetch(targetUrl, {
       headers: { Authorization: `Bearer ${cronSecret}` },
-    }).then(async (res) => {
-      const text = await res.text();
-      console.log("[trigger-image] 완료:", res.status, text.slice(0, 500));
-    }).catch((err) => {
-      console.error("[trigger-image] 에러:", err instanceof Error ? err.message : err);
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
-    return Response.json({
-      success: true,
-      message: "이미지 생성 및 발행을 백그라운드에서 시작했습니다. 2~5분 후 WordPress를 확인해주세요.",
-    });
+    const text = await res.text();
+    console.log("[trigger-image] 응답:", res.status, text.slice(0, 500));
+
+    let data;
+    try { data = JSON.parse(text); }
+    catch { return Response.json({ error: `응답 파싱 실패: ${text.slice(0, 200)}` }, { status: 502 }); }
+
+    return Response.json(data, { status: res.status });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 오류";
+    console.error("[trigger-image] 오류:", msg);
     return Response.json({ error: msg }, { status: 500 });
   }
 }

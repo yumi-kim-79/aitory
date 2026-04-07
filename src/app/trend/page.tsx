@@ -336,20 +336,17 @@ export default function TrendPage() {
                     const res = await fetch("/api/trend/trigger-publish", {
                       method: "POST",
                       headers: { Authorization: `Bearer ${token}` },
-                      signal: AbortSignal.timeout(30000),
+                      signal: AbortSignal.timeout(280000),
                     });
                     console.log("[auto] 3. 응답 수신:", res.status);
                     const data = await res.json();
                     console.log("[auto] 4. 응답 데이터:", data);
                     if (!res.ok) {
                       setAutoResults([{ keyword: "서버 오류", ok: false, error: data.error || `HTTP ${res.status}` }]);
-                    } else if (data.message) {
-                      setAutoResults([{ keyword: "발행 시작", success: true, error: data.message }]);
-                      // 5분 쿨다운
-                      setAutoCooldown(true);
-                      setTimeout(() => setAutoCooldown(false), 5 * 60 * 1000);
+                    } else if (data.results?.length) {
+                      setAutoResults(data.results);
                     } else {
-                      setAutoResults(data.results || [{ keyword: "완료", success: true }]);
+                      setAutoResults([{ keyword: data.stage || "완료", success: data.success, error: data.message || data.error }]);
                     }
                   } catch (err) {
                     const msg = err instanceof Error ? err.message : String(err);
@@ -357,10 +354,10 @@ export default function TrendPage() {
                     setAutoResults([{ keyword: "에러", ok: false, error: `API 호출 실패: ${msg}` }]);
                   } finally { setAutoPublishing(false); }
                 }}
-                disabled={autoPublishing || autoCooldown}
+                disabled={autoPublishing}
                 className="w-full py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 disabled:bg-purple-300 flex items-center justify-center gap-2"
               >
-                {autoPublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />요청 중...</> : autoCooldown ? "1단계 draft 저장 중..." : "🚀 1단계: Draft 저장 (글만)"}
+                {autoPublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Draft 저장 중... (1~2분)</> : "🚀 1단계: Draft 저장 (글만)"}
               </button>
               <button
                 onClick={async () => {
@@ -368,7 +365,7 @@ export default function TrendPage() {
                   try {
                     const token = await getIdToken();
                     if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); return; }
-                    const res = await fetch("/api/trend/trigger-publish-image", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30000) });
+                    const res = await fetch("/api/trend/trigger-publish-image", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(280000) });
                     const data = await res.json();
                     if (!res.ok) { setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]); }
                     else if (data.message) { setAutoResults([{ keyword: "이미지 생성 시작", success: true, error: data.message }]); }
