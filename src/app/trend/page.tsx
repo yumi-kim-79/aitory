@@ -323,12 +323,32 @@ export default function TrendPage() {
                 onClick={async () => {
                   setAutoPublishing(true); setAutoResults([]);
                   try {
+                    console.log("[auto] 1. ID 토큰 획득 시도...");
                     const token = await getIdToken();
-                    const res = await fetch("/api/trend/trigger-publish", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+                    if (!token) {
+                      console.error("[auto] ID 토큰 획득 실패 (null)");
+                      setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰을 가져올 수 없습니다. 로그아웃 후 다시 로그인해주세요." }]);
+                      return;
+                    }
+                    console.log("[auto] 2. 토큰 획득 성공, API 호출 시작...");
+                    const res = await fetch("/api/trend/trigger-publish", {
+                      method: "POST",
+                      headers: { Authorization: `Bearer ${token}` },
+                      signal: AbortSignal.timeout(290000),
+                    });
+                    console.log("[auto] 3. 응답 수신:", res.status);
                     const data = await res.json();
-                    setAutoResults(data.results || []);
-                  } catch { setAutoResults([{ keyword: "에러", ok: false, error: "API 호출 실패" }]); }
-                  finally { setAutoPublishing(false); }
+                    console.log("[auto] 4. 응답 데이터:", data);
+                    if (!res.ok) {
+                      setAutoResults([{ keyword: "서버 오류", ok: false, error: data.error || `HTTP ${res.status}` }]);
+                    } else {
+                      setAutoResults(data.results || [{ keyword: "완료", ok: true, wpUrl: "", error: data.error }]);
+                    }
+                  } catch (err) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    console.error("[auto] 에러:", msg);
+                    setAutoResults([{ keyword: "에러", ok: false, error: `API 호출 실패: ${msg}` }]);
+                  } finally { setAutoPublishing(false); }
                 }}
                 disabled={autoPublishing}
                 className="w-full py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 disabled:bg-purple-300 flex items-center justify-center gap-2"
