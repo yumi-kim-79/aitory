@@ -256,3 +256,5 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-07 | openai 패키지 추가, DALL-E imgRes.data optional chaining 타입 에러 수정 |
 | 2026-04-07 | README.md에 Claude Code 작업 방식 섹션 추가 - 새 세션 시작 시 작업 형식/순서 명문화 |
 | 2026-04-07 | 자동발행 탭 안내 텍스트 업데이트 - TOP 15 수집, 카테고리별 1개씩 선정 안내 반영 |
+| 2026-04-07 | 자동발행 버튼 401 에러 수정 - trigger-publish 프록시 API 생성, Firebase ID 토큰 인증으로 변경 |
+| 2026-04-07 | trigger-publish 500 에러 수정 - 내부 fetch 절대경로(VERCEL_PROJECT_PRODUCTION_URL), CRON_SECRET 검증, 에러 로깅 강화 |
