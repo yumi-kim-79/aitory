@@ -314,7 +314,9 @@ export default function TrendPage() {
               <h2 className="text-lg font-bold text-slate-900 mb-4">🤖 자동 발행 시스템</h2>
               <div className="space-y-3 text-sm text-slate-600 mb-6">
                 <p>매일 <strong>09:00</strong>, <strong>15:00</strong> (KST) 자동 발행</p>
-                <p>트렌드 TOP 3 키워드 → 뉴스 수집 → AI 블로그 글 → DALL-E 이미지 → WordPress 발행</p>
+                <p>트렌드 TOP 15 키워드 수집 → Claude가 카테고리 분류 → 카테고리별 1개씩 선정</p>
+                <p>카테고리: 연예/문화, 경제/비즈니스, 사회/생활, IT/과학, 스포츠</p>
+                <p>뉴스 수집 → AI 블로그 글 → DALL-E 이미지 → WordPress 자동 발행</p>
                 <p className="text-red-500">정치/선거/탄핵 키워드는 자동 제외됩니다.</p>
               </div>
               <button

@@ -31,6 +31,29 @@ AI가 당신의 업무를 대신하는 플랫폼
 /translate | /invoice | /invoice/history | /business-card | /business-card/scan
 /meeting | /meeting/history | /resume | /auth/signin | /auth/signup | /pricing | /mypage
 
+### Claude Code 작업 방식 (새 세션에서 반드시 준수)
+- 새 채팅 시작 시 항상 README.md를 먼저 읽고 컨텍스트 파악
+- 작업 요청 형식:
+  ```
+  README.md 읽고 이어서 작업해줘.
+
+  ## 문제
+  (문제 설명)
+
+  ## 해결
+  (수정할 파일 경로 및 변경 내용)
+
+  ## 작업 완료 후 필수 순서
+  1. README.md 변경 이력 업데이트
+     | 날짜 | 변경 내용 |
+  2. git add . && git commit -m "커밋메시지"
+  3. git push origin main
+  4. npx vercel --prod
+  ```
+- README.md 변경이력은 교체가 아닌 **업데이트(추가)** 방식으로
+- 코드 수정 → README 변경이력 업데이트 → 커밋/배포 순서 반드시 준수
+- 배포 명령어는 반드시 `npx vercel --prod` 사용 (git push 자동배포 불안정)
+
 ### 개발 원칙 및 주의사항
 - Firestore 컬렉션은 반드시 aitory_ 접두사 사용
 - useAuth import 경로: @/contexts/AuthContext (hooks/useAuth 아님)
@@ -229,3 +252,7 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-06 | Kbuzz AI 이미지 안내문구 추가, 뉴스 날짜 필터링 강화(after: 파라미터, 작년 이전 제외, 최신순 정렬) |
 | 2026-04-06 | SureRank SEO description 수정 - excerpt 150자 + _surerank_description 메타 필드 전송 |
 | 2026-04-07 | 완전 자동화 - DALL-E 3 이미지 자동 생성, WP 미디어 업로드/대표이미지, Cron Job(09:00/15:00 KST), 관리자 자동화 대시보드 |
+| 2026-04-07 | 자동발행 카테고리 분산 - 트렌드 TOP 15 수집 후 Claude가 카테고리 분류(연예/문화, 경제/비즈니스, 사회/생활, IT/과학, 스포츠), 카테고리별 1개씩 발행으로 주제 편중 방지 |
+| 2026-04-07 | openai 패키지 추가, DALL-E imgRes.data optional chaining 타입 에러 수정 |
+| 2026-04-07 | README.md에 Claude Code 작업 방식 섹션 추가 - 새 세션 시작 시 작업 형식/순서 명문화 |
+| 2026-04-07 | 자동발행 탭 안내 텍스트 업데이트 - TOP 15 수집, 카테고리별 1개씩 선정 안내 반영 |
