@@ -7,11 +7,37 @@ export const maxDuration = 300;
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 function extractJSON(text: string): string {
+  // 1. 코드블록 내 JSON
   const f = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (f) return f[1].trim();
+  // 2. 완전한 JSON 객체
   const m = text.match(/\{[\s\S]*\}/);
   if (m) return m[0];
+  // 3. 잘린 JSON 복구 시도 (마지막 { 부터)
+  const start = text.indexOf('{');
+  if (start >= 0) return text.slice(start);
   return text.trim();
+}
+
+function tryParseJSON(text: string): Record<string, unknown> {
+  const raw = extractJSON(text);
+  // 정상 파싱 시도
+  try { return JSON.parse(raw); } catch {}
+  // 잘린 JSON 복구: 닫히지 않은 문자열/배열/객체 닫기
+  let fixed = raw;
+  // 열린 문자열 닫기
+  const quotes = (fixed.match(/"/g) || []).length;
+  if (quotes % 2 !== 0) fixed += '"';
+  // 열린 배열 닫기
+  const openBrackets = (fixed.match(/\[/g) || []).length;
+  const closeBrackets = (fixed.match(/\]/g) || []).length;
+  for (let i = 0; i < openBrackets - closeBrackets; i++) fixed += ']';
+  // 열린 객체 닫기
+  const openBraces = (fixed.match(/\{/g) || []).length;
+  const closeBraces = (fixed.match(/\}/g) || []).length;
+  for (let i = 0; i < openBraces - closeBraces; i++) fixed += '}';
+  try { return JSON.parse(fixed); } catch {}
+  throw new Error('JSON 파싱 실패');
 }
 
 // ────────────────────────────────────────────
@@ -225,7 +251,7 @@ ${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 }
 
 // ────────────────────────────────────────────
-// Claude 블로그 글 생성 (max_tokens 축소)
+// Claude 블로그 글 생성
 // ────────────────────────────────────────────
 async function generateBlog(keyword: string, category: string, news: string) {
   const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -235,23 +261,35 @@ async function generateBlog(keyword: string, category: string, news: string) {
 뉴스:
 ${news}
 
-SEO 블로그 글 작성. JSON만 반환:
-{"title":"SEO 제목 40~60자","slug":"영문-슬러그","content":"HTML 본문 1500자+","excerpt":"메타설명 150자이내","category":"${category}","tags":["한국어태그x5"]}
-content: <h2> 3개+, 각200자+, <p><strong>, 전망/결론. 오늘(${today}) 기준 최신 정보.`;
+SEO 블로그 글을 JSON으로 반환. 다른 텍스트 없이 JSON만:
+{"title":"제목 40~60자","slug":"english-slug","content":"<h2>소제목1</h2><p>본문...</p><h2>소제목2</h2><p>본문...</p><h2>소제목3</h2><p>본문...</p>","excerpt":"메타설명 120자","tags":["태그1","태그2","태그3","태그4","태그5"]}
+content는 800자 이상 HTML. 오늘(${today}) 기준 작성.`;
 
   const res = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 1200,
+    max_tokens: 2500,
     messages: [{ role: 'user', content: prompt }],
   });
 
   const text = res.content[0].type === 'text' ? res.content[0].text : '';
-  let parsed;
-  try { parsed = JSON.parse(extractJSON(text)); }
-  catch { throw new Error('블로그 생성 JSON 파싱 실패'); }
+  console.log(`[generateBlog] ${keyword} 응답 길이: ${text.length}, stop: ${res.stop_reason}`);
 
-  const metaDesc = (parsed.metaDesc || parsed.excerpt || '').slice(0, 150);
-  return { title: parsed.title, content: parsed.content, metaDesc, tags: parsed.tags || [], slug: parsed.slug };
+  let parsed;
+  try {
+    parsed = tryParseJSON(text);
+  } catch {
+    console.error('[generateBlog] JSON 파싱 실패:', text.slice(0, 500));
+    throw new Error('블로그 생성 JSON 파싱 실패');
+  }
+
+  const metaDesc = (parsed.metaDesc as string || parsed.excerpt as string || '').slice(0, 150);
+  return {
+    title: parsed.title as string,
+    content: parsed.content as string,
+    metaDesc,
+    tags: (parsed.tags as string[]) || [],
+    slug: parsed.slug as string,
+  };
 }
 
 // ────────────────────────────────────────────

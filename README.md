@@ -267,3 +267,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-07 | 자동발행 전략 개편 - K콘텐츠 별도 RSS 수집, 트렌드 우선+RSS 보완, Firestore 중복방지(7일) |
 | 2026-04-07 | 자동발행 2단계 분리 - 1단계 draft 저장(글만), 2단계 DALL-E 이미지 생성 후 publish, Cron 5분 간격 |
 | 2026-04-07 | trigger-publish fire-and-forget → 직접 await 방식으로 변경, maxDuration 300, 실제 결과 반환 |
+| 2026-04-07 | 블로그 생성 JSON 파싱 실패 수정 - max_tokens 2500, 잘린 JSON 복구 로직, 프롬프트 800자+ 축소 |
