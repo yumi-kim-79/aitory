@@ -14,37 +14,69 @@ interface ImageResult {
 }
 
 // ────────────────────────────────────────────
-// DALL-E 3 이미지 생성
+// WP 포스트 제목+본문 조회
+// ────────────────────────────────────────────
+async function fetchPostInfo(postId: number): Promise<{ title: string; contentPreview: string } | null> {
+  const wpBase = process.env.WP_SITE_URL;
+  const wpUser = process.env.WP_USERNAME;
+  const wpPass = process.env.WP_APP_PASSWORD;
+  if (!wpBase || !wpUser || !wpPass) return null;
+
+  const auth = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
+  try {
+    const res = await fetch(`${wpBase}/wp-json/wp/v2/posts/${postId}`, {
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return null;
+    const post = await res.json();
+    const title = (post.title?.rendered || '').replace(/<[^>]+>/g, '');
+    const rawContent = (post.content?.raw || post.content?.rendered || '').replace(/<[^>]+>/g, '');
+    return { title, contentPreview: rawContent.slice(0, 500) };
+  } catch {
+    return null;
+  }
+}
+
+// ────────────────────────────────────────────
+// DALL-E 3 이미지 생성 (본문 내용 기반)
 // ────────────────────────────────────────────
 const CATEGORY_STYLES: Record<string, string> = {
-  'K-연예/한류': 'Vibrant K-pop concert stage with dramatic lighting, colorful LED backdrop, modern Korean entertainment aesthetic, cinematic quality',
-  'K-스포츠': 'Dynamic sports action scene with Korean flag elements, stadium atmosphere, dramatic lighting, motion blur effect',
-  '경제/비즈니스': 'Modern financial district skyline, stock market data visualization, sleek corporate aesthetic, blue and gold color scheme',
-  '사회/생활': 'Clean modern lifestyle photography style, warm natural lighting, Korean urban environment',
-  'IT/과학': 'Futuristic technology visualization, glowing circuit patterns, blue purple gradient, AI neural network aesthetic',
+  'K-연예/한류': 'K-pop concert stage, dramatic LED lighting, colorful backdrop, cinematic Korean entertainment aesthetic',
+  'K-스포츠': 'Dynamic sports action scene, Korean flag elements, stadium atmosphere, dramatic lighting, motion blur',
+  '경제/비즈니스': 'Modern financial district skyline, stock market data visualization, blue and gold corporate aesthetic',
+  '사회/생활': 'Clean modern lifestyle photography, warm natural lighting, Korean urban environment',
+  'IT/과학': 'Futuristic technology visualization, glowing circuit patterns, blue purple gradient, AI neural network',
 };
 
-const QUALITY_SUFFIX = 'no human faces, no text, no letters, professional blog thumbnail, highly detailed, 4K quality, professional photography, sharp focus, perfect composition, magazine cover quality';
-
-async function generateImage(keyword: string, category: string): Promise<string | null> {
+async function generateImage(
+  keyword: string,
+  category: string,
+  title: string,
+  contentPreview: string,
+): Promise<string | null> {
   try {
-    const styleHint = CATEGORY_STYLES[category] || 'clean and modern professional blog thumbnail style';
+    const styleHint = CATEGORY_STYLES[category] || 'clean and modern professional blog thumbnail';
 
     const promptRes = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 300,
       messages: [{
         role: 'user',
-        content: `Create a DALL-E 3 image prompt in English for a blog about "${keyword}".
+        content: `다음 블로그 글의 내용을 완벽하게 표현하는 DALL-E 3 이미지 프롬프트를 영어로 작성해줘.
 
-Style reference: ${styleHint}
+블로그 제목: ${title}
+카테고리: ${category}
+본문 요약: ${contentPreview}
 
-Requirements:
-- Incorporate the specific topic "${keyword}" into the visual concept
-- ${QUALITY_SUFFIX}
-- Do NOT include any text, words, or letters in the image
+요구사항:
+- 블로그 핵심 주제를 시각적으로 표현
+- 사람 얼굴 없음, 텍스트/글자 없음
+- 16:9 비율 블로그 썸네일
+- 4K 퀄리티, 선명한 포커스, 매거진 커버 수준
+- 스타일 참고: ${styleHint}
 
-Respond with only the English prompt, no other text.`,
+영어 프롬프트만 반환, 다른 텍스트 없이.`,
       }],
     });
     const dallePrompt = promptRes.content[0].type === 'text' ? promptRes.content[0].text.trim() : keyword;
@@ -79,7 +111,6 @@ async function uploadImageAndPublish(postId: number, imageUrl: string | null, ke
 
   const updateBody: Record<string, unknown> = { status: 'publish' };
 
-  // 이미지 업로드
   if (imageUrl) {
     try {
       const imgFetch = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
@@ -97,7 +128,6 @@ async function uploadImageAndPublish(postId: number, imageUrl: string | null, ke
       const media = await mediaRes.json();
       if (media.id) {
         updateBody.featured_media = media.id;
-        // alt text
         await fetch(`${wpBase}/wp-json/wp/v2/media/${media.id}`, {
           method: 'POST', headers,
           body: JSON.stringify({ alt_text: keyword }),
@@ -118,7 +148,6 @@ async function uploadImageAndPublish(postId: number, imageUrl: string | null, ke
     }
   }
 
-  // publish로 변경
   const res = await fetch(`${wpBase}/wp-json/wp/v2/posts/${postId}`, {
     method: 'POST', headers,
     body: JSON.stringify(updateBody),
@@ -142,7 +171,6 @@ export async function GET(req: NextRequest) {
   const results: ImageResult[] = [];
 
   try {
-    // pending 글 조회
     const snap = await adminDb
       .collection('aitory_published_keywords')
       .where('imageStatus', '==', 'pending')
@@ -154,7 +182,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'pending 글 없음', results });
     }
 
-    // 순차 처리 (DALL-E rate limit 방지)
     for (const doc of snap.docs) {
       const data = doc.data();
       const { keyword, category, postId } = data as { keyword: string; category: string; postId: number };
@@ -162,13 +189,17 @@ export async function GET(req: NextRequest) {
       console.log(`[auto-publish-image] 처리: ${keyword} (postId=${postId})`);
 
       try {
-        // DALL-E 이미지 생성
-        const imageUrl = await generateImage(keyword, category);
+        // WP에서 제목+본문 조회
+        const postInfo = await fetchPostInfo(postId);
+        const title = postInfo?.title || keyword;
+        const contentPreview = postInfo?.contentPreview || keyword;
+
+        // DALL-E 이미지 생성 (본문 내용 기반)
+        const imageUrl = await generateImage(keyword, category, title, contentPreview);
 
         // WP 이미지 업로드 + publish
         await uploadImageAndPublish(postId, imageUrl, keyword);
 
-        // Firestore 상태 업데이트
         await doc.ref.update({
           imageStatus: 'done',
           status: 'published',
@@ -182,7 +213,6 @@ export async function GET(req: NextRequest) {
         results.push({ keyword, postId, success: false, error: msg });
         console.error(`[auto-publish-image] 실패: ${keyword}`, msg);
 
-        // 이미지 실패해도 publish는 시도
         try {
           await uploadImageAndPublish(postId, null, keyword);
           await doc.ref.update({ imageStatus: 'failed', status: 'published' });
