@@ -262,8 +262,9 @@ async function generateBlog(keyword: string, category: string, news: string) {
 ${news}
 
 SEO 블로그 글을 JSON으로 반환. 다른 텍스트 없이 JSON만:
-{"title":"제목 40~60자","slug":"english-slug","content":"<h2>소제목1</h2><p>본문...</p><h2>소제목2</h2><p>본문...</p><h2>소제목3</h2><p>본문...</p>","excerpt":"메타설명 120자","tags":["태그1","태그2","태그3","태그4","태그5"]}
-content는 800자 이상 HTML. 오늘(${today}) 기준 작성.`;
+{"title":"제목 40~60자","slug":"english-slug","content":"<h2>소제목1</h2><p>본문300자+</p><h2>소제목2</h2><p>본문300자+</p><h2>소제목3</h2><p>본문300자+</p>","excerpt":"메타설명 140자이내","tags":["태그1","태그2","태그3","태그4","태그5"]}
+content는 1500자 이상 HTML(<h2><p><strong><ul><li>). 소제목 3개+, 각 300자+. 오늘(${today}) 기준 작성.
+excerpt는 반드시 140자 이내로 작성.`;
 
   const res = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
@@ -332,13 +333,17 @@ async function postDraftToWP(params: {
     }
   } catch {}
 
+  const safeExcerpt = params.metaDesc.slice(0, 150);
   const postBody: Record<string, unknown> = {
     title: params.title,
     content: params.content,
     status: 'draft',
-    excerpt: params.metaDesc.slice(0, 150),
+    excerpt: safeExcerpt,
     tags: tagIds,
-    meta: { _surerank_description: params.metaDesc.slice(0, 150) },
+    meta: {
+      _surerank_description: safeExcerpt,
+      _yoast_wpseo_metadesc: safeExcerpt,
+    },
   };
   if (categoryId) postBody.categories = [categoryId];
 
