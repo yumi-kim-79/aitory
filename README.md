@@ -261,3 +261,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-07 | 자동발행 버튼 에러 디버깅 강화 - idToken 실패/fetch 실패 시 화면에 에러 표시, 각 단계 콘솔 로깅 |
 | 2026-04-07 | 트렌드 키워드 수집 실패 디버깅 - RSS 파싱 로그 강화, fallback URL 추가, plain title 파싱 추가 |
 | 2026-04-07 | auto-publish 트렌드 수집 방식 변경 - 직접 RSS fetch 대신 기존 /api/trend/fetch API 내부 호출로 교체 |
+| 2026-04-07 | auto-publish WP_URL→WP_SITE_URL 환경변수명 수정, 블로그 JSON 파싱을 extractJSON 방식으로 개선 |

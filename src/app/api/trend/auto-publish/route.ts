@@ -5,6 +5,14 @@ export const maxDuration = 300;
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+function extractJSON(text: string): string {
+  const f = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (f) return f[1].trim();
+  const m = text.match(/\{[\s\S]*\}/);
+  if (m) return m[0];
+  return text.trim();
+}
+
 // ────────────────────────────────────────────
 // 카테고리 정의
 // ────────────────────────────────────────────
@@ -155,40 +163,48 @@ async function generateBlog(
   keyword: string,
   category: string,
   news: string
-): Promise<{ title: string; content: string; metaDesc: string; tags: string[] }> {
-  const prompt = `당신은 SEO 전문 블로거입니다. 다음 정보를 바탕으로 블로그 글을 작성하세요.
+): Promise<{ title: string; content: string; metaDesc: string; tags: string[]; slug?: string; excerpt?: string }> {
+  const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
 
-키워드: ${keyword}
+  const prompt = `키워드: ${keyword}
 카테고리: ${category}
-관련 뉴스:
+오늘: ${today}
+뉴스:
 ${news}
 
-요구사항:
-- HTML 형식(h2, h3, p, strong 태그 사용)
-- 1500자 이상
-- 소제목 3개 이상
-- SEO에 최적화된 자연스러운 한국어
-- 사실에 기반한 내용, 추측 최소화
-- 사람 얼굴/인물 묘사 최소화
+SEO 블로그 글 작성. JSON만 반환:
+{"title":"SEO 제목 40~60자","slug":"영문-슬러그","content":"HTML 본문 1500자+","excerpt":"메타설명 150자이내","category":"${category}","tags":["한국어태그x5"]}
 
-응답 JSON(다른 텍스트 없이):
-{
-  "title": "SEO 제목 (50자 이내)",
-  "content": "HTML 블로그 본문",
-  "metaDesc": "메타 설명 (150자 이내)",
-  "tags": ["태그1", "태그2", "태그3"]
-}`;
+content: <h2> 4개+, 각300자+, <p><strong><ul><li>, 전망/결론
+오늘(${today}) 기준 최신 정보로 작성.`;
 
   const res = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 2000,
+    max_tokens: 3000,
     messages: [{ role: 'user', content: prompt }],
   });
 
   const text = res.content[0].type === 'text' ? res.content[0].text : '';
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('블로그 생성 JSON 파싱 실패');
-  return JSON.parse(jsonMatch[0]);
+  console.log('[generateBlog] 응답 앞 300자:', text.slice(0, 300));
+
+  let parsed;
+  try {
+    parsed = JSON.parse(extractJSON(text));
+  } catch (e) {
+    console.error('[generateBlog] JSON 파싱 실패, 원문:', text.slice(0, 500));
+    throw new Error('블로그 생성 JSON 파싱 실패');
+  }
+
+  // excerpt → metaDesc 호환
+  const metaDesc = (parsed.metaDesc || parsed.excerpt || '').slice(0, 150);
+  return {
+    title: parsed.title,
+    content: parsed.content,
+    metaDesc,
+    tags: parsed.tags || [],
+    slug: parsed.slug,
+    excerpt: metaDesc,
+  };
 }
 
 // ────────────────────────────────────────────
@@ -241,7 +257,7 @@ async function postToWordPress(params: {
   imageUrl: string | null;
   keyword: string;
 }): Promise<string> {
-  const wpBase = process.env.WP_URL;
+  const wpBase = process.env.WP_SITE_URL;
   const wpUser = process.env.WP_USERNAME;
   const wpPass = process.env.WP_APP_PASSWORD;
   const auth = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
