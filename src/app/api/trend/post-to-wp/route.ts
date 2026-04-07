@@ -3,6 +3,41 @@ import { getUserDoc } from "@/lib/auth";
 
 export const maxDuration = 60;
 
+// ── WP 이미지 업로드 ──
+
+async function uploadImageToWP(imageUrl: string, wpUrl: string, auth: string, alt: string): Promise<{ id: number; url: string } | null> {
+  try {
+    const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(20000) });
+    if (!imgRes.ok) return null;
+    const imgBuffer = await imgRes.arrayBuffer();
+    const wpRes = await fetch(`${wpUrl}/wp-json/wp/v2/media`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${auth}`,
+        "Content-Type": "image/png",
+        "Content-Disposition": `attachment; filename="post-${Date.now()}.png"`,
+      },
+      body: Buffer.from(imgBuffer),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!wpRes.ok) { console.error("[wp-img] 업로드 실패:", wpRes.status); return null; }
+    const media = await wpRes.json();
+    // alt 텍스트 설정
+    if (media.id && alt) {
+      await fetch(`${wpUrl}/wp-json/wp/v2/media/${media.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` },
+        body: JSON.stringify({ alt_text: alt }),
+      }).catch(() => {});
+    }
+    console.log("[wp-img] 업로드 성공:", media.id);
+    return { id: media.id, url: media.source_url };
+  } catch (e) {
+    console.error("[wp-img] 에러:", e);
+    return null;
+  }
+}
+
 // ── WP 태그/카테고리 헬퍼 ──
 
 async function getOrCreateTag(
@@ -73,7 +108,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
     }
 
-    const { title, content, excerpt, slug, status, tags, category } = (await request.json()) as {
+    const { title, content, excerpt, slug, status, tags, category, imageUrl, imageAlt } = (await request.json()) as {
       title: string;
       content: string;
       excerpt: string;
@@ -81,6 +116,8 @@ export async function POST(request: Request) {
       status: "draft" | "publish";
       tags?: string[];
       category?: string;
+      imageUrl?: string;
+      imageAlt?: string;
     };
 
     const wpUrl = process.env.WP_SITE_URL;
@@ -129,7 +166,21 @@ export async function POST(request: Request) {
       ? excerpt.slice(0, 147) + "..."
       : excerpt || "";
 
-    console.log("[wp] 포스팅:", { title: title?.slice(0, 30), slug, status, tags: tagIds.length, cats: categoryIds.length, excerptLen: safeExcerpt.length });
+    // 이미지 업로드 + featured_media
+    let featuredMediaId: number | undefined;
+    if (imageUrl) {
+      const media = await uploadImageToWP(imageUrl, wpUrl, auth, imageAlt || title);
+      if (media) {
+        featuredMediaId = media.id;
+        // 본문 <!-- 이미지: ... --> 주석을 WP 이미지 블록으로 교체
+        htmlContent = htmlContent.replace(
+          /<!-- 이미지:[^>]*-->/,
+          `<!-- wp:image {"id":${media.id},"sizeSlug":"large"} -->\n<figure class="wp-block-image size-large"><img src="${media.url}" alt="${imageAlt || title}"/></figure>\n<!-- /wp:image -->`,
+        );
+      }
+    }
+
+    console.log("[wp] 포스팅:", { title: title?.slice(0, 30), slug, status, tags: tagIds.length, cats: categoryIds.length, featuredMediaId });
 
     const wpRes = await fetch(`${wpUrl}/wp-json/wp/v2/posts`, {
       method: "POST",
@@ -146,6 +197,7 @@ export async function POST(request: Request) {
           _surerank_description: safeExcerpt,
         },
         ...(slug ? { slug } : {}),
+        ...(featuredMediaId ? { featured_media: featuredMediaId } : {}),
         ...(tagIds.length ? { tags: tagIds } : {}),
         ...(categoryIds.length ? { categories: categoryIds } : {}),
       }),

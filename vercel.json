@@ -13,5 +13,9 @@
         }
       ]
     }
+  ],
+  "crons": [
+    { "path": "/api/trend/auto-publish", "schedule": "0 0 * * *" },
+    { "path": "/api/trend/auto-publish", "schedule": "0 6 * * *" }
   ]
 }

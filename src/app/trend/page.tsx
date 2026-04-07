@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 
-type MainTab = "trends" | "content" | "blog" | "kbuzz";
+type MainTab = "trends" | "content" | "blog" | "kbuzz" | "auto";
 
 interface TrendKeyword { title: string; traffic: string }
 interface Article { title: string; source: string; summary: string; url: string; publishedAt?: string }
@@ -52,6 +52,8 @@ export default function TrendPage() {
   const [publishError, setPublishError] = useState("");
   const [publishStatus, setPublishStatus] = useState<"draft" | "publish">("draft");
   const [apiError, setApiError] = useState("");
+  const [autoPublishing, setAutoPublishing] = useState(false);
+  const [autoResults, setAutoResults] = useState<{ keyword: string; ok: boolean; postUrl?: string; error?: string }[]>([]);
 
   const [copied, setCopied] = useState("");
 
@@ -225,7 +227,8 @@ export default function TrendPage() {
           <button onClick={() => setMainTab("trends")} className={`px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap ${mainTab === "trends" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>🔥 트렌드</button>
           <button onClick={() => setMainTab("content")} className={`px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap ${mainTab === "content" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>✍️ AI 콘텐츠</button>
           <button onClick={() => setMainTab("blog")} className={`px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap ${mainTab === "blog" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>📝 AI 블로그 글</button>
-          {isAdmin && <button onClick={() => setMainTab("kbuzz")} className={`px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap ${mainTab === "kbuzz" ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"}`}>🚀 Kbuzz 발행</button>}
+          {isAdmin && <button onClick={() => setMainTab("kbuzz")} className={`px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap ${mainTab === "kbuzz" ? "bg-blue-600 text-white" : "bg-blue-50 text-blue-700 hover:bg-blue-100"}`}>🚀 Kbuzz</button>}
+          {isAdmin && <button onClick={() => setMainTab("auto")} className={`px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap ${mainTab === "auto" ? "bg-purple-600 text-white" : "bg-purple-50 text-purple-700 hover:bg-purple-100"}`}>🤖 자동발행</button>}
         </div>
 
         {/* 키워드 그리드 */}
@@ -301,6 +304,50 @@ export default function TrendPage() {
               </button>
             )}
             <BlogPreview />
+          </div>
+        )}
+
+        {/* 탭5: 자동 발행 (관리자만) */}
+        {mainTab === "auto" && isAdmin && (
+          <div className="mb-8">
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-6">
+              <h2 className="text-lg font-bold text-slate-900 mb-4">🤖 자동 발행 시스템</h2>
+              <div className="space-y-3 text-sm text-slate-600 mb-6">
+                <p>매일 <strong>09:00</strong>, <strong>15:00</strong> (KST) 자동 발행</p>
+                <p>트렌드 TOP 3 키워드 → 뉴스 수집 → AI 블로그 글 → DALL-E 이미지 → WordPress 발행</p>
+                <p className="text-red-500">정치/선거/탄핵 키워드는 자동 제외됩니다.</p>
+              </div>
+              <button
+                onClick={async () => {
+                  setAutoPublishing(true); setAutoResults([]);
+                  try {
+                    const res = await fetch("/api/trend/auto-publish", { headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ""}` } });
+                    const data = await res.json();
+                    setAutoResults(data.results || []);
+                  } catch { setAutoResults([{ keyword: "에러", ok: false, error: "API 호출 실패" }]); }
+                  finally { setAutoPublishing(false); }
+                }}
+                disabled={autoPublishing}
+                className="w-full py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 disabled:bg-purple-300 flex items-center justify-center gap-2"
+              >
+                {autoPublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />자동 발행 중... (1~3분 소요)</> : "🚀 지금 즉시 자동 발행"}
+              </button>
+            </div>
+
+            {autoResults.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-slate-700">발행 결과</h3>
+                {autoResults.map((r, i) => (
+                  <div key={i} className={`p-4 rounded-xl border ${r.ok ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">{r.ok ? "✅" : "❌"} {r.keyword}</span>
+                      {r.postUrl && <a href={r.postUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">{r.postUrl}</a>}
+                    </div>
+                    {r.error && <p className="text-xs text-red-600 mt-1">{r.error}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
