@@ -200,7 +200,7 @@ Respond with only the English prompt, no other text.`,
       style: 'natural',
       n: 1,
     });
-    return imgRes.data[0]?.url ?? null;
+    return imgRes.data?.[0]?.url ?? null;
   } catch (e) {
     console.error('DALL-E 생성 실패:', e);
     return null;
