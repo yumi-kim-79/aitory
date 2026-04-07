@@ -14,16 +14,12 @@ function extractJSON(text: string): string {
 }
 
 // ────────────────────────────────────────────
-// 카테고리 정의
+// 카테고리 정의 (K-콘텐츠 중심)
 // ────────────────────────────────────────────
-const CATEGORIES = [
-  '연예/문화',
-  '경제/비즈니스',
-  '사회/생활',
-  'IT/과학',
-  '스포츠',
-] as const;
-type Category = (typeof CATEGORIES)[number];
+const K_CATEGORIES = ['K-연예/한류', 'K-스포츠'] as const;
+const GENERAL_CATEGORIES = ['경제/비즈니스', '사회/생활', 'IT/과학'] as const;
+const ALL_CATEGORIES = [...K_CATEGORIES, ...GENERAL_CATEGORIES] as const;
+type Category = (typeof ALL_CATEGORIES)[number];
 
 interface TrendKeyword {
   keyword: string;
@@ -40,10 +36,9 @@ interface PublishResult {
 }
 
 // ────────────────────────────────────────────
-// 1. Google Trends RSS 수집 (TOP 15)
+// 1. 트렌드 키워드 수집 (기존 API 재활용)
 // ────────────────────────────────────────────
 async function fetchTrendKeywords(): Promise<{ keywords: string[]; debug: { source: string; error?: string } }> {
-  // 기존 /api/trend/fetch API를 내부 호출 (프론트엔드에서 정상 작동 확인됨)
   const baseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : process.env.VERCEL_URL
@@ -76,11 +71,17 @@ async function fetchTrendKeywords(): Promise<{ keywords: string[]; debug: { sour
 }
 
 // ────────────────────────────────────────────
-// 2. Claude로 키워드 카테고리 분류 + 정치 필터
+// 2. Claude로 키워드 카테고리 분류 (K-콘텐츠 기준)
 // ────────────────────────────────────────────
 async function classifyKeywords(keywords: string[]): Promise<TrendKeyword[]> {
   const prompt = `다음 키워드들을 각각 아래 카테고리 중 하나로 분류해줘.
-카테고리: 연예/문화, 경제/비즈니스, 사회/생활, IT/과학, 스포츠, 정치, 기타
+카테고리: K-연예/한류, K-스포츠, 경제/비즈니스, 사회/생활, IT/과학, 정치, 기타
+
+분류 기준:
+- K-드라마, K-팝, 한국 연예인, 미스트롯/미스터트롯, 한류, 한국 영화/드라마/음악, 한국 문화 → K-연예/한류
+- 한국 스포츠 선수, KBO/KBL/K리그, 한국 대표팀, 한국 스포츠 이슈 → K-스포츠
+- 그 외 일반 스포츠(해외 스포츠 등) → 기타
+- 정치/선거/탄핵/정당 → 정치
 
 키워드 목록:
 ${keywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}
@@ -99,7 +100,7 @@ ${keywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}
 
   const text = res.content[0].type === 'text' ? res.content[0].text : '';
   const jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) return keywords.map((k, i) => ({ keyword: k, category: '기타', rank: i + 1 }));
+  if (!jsonMatch) return keywords.map((k, i) => ({ keyword: k, category: '기타' as const, rank: i + 1 }));
 
   const parsed: { keyword: string; category: string }[] = JSON.parse(jsonMatch[0]);
   return parsed.map((item, i) => ({
@@ -110,25 +111,44 @@ ${keywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}
 }
 
 // ────────────────────────────────────────────
-// 3. 카테고리별 대표 1개 선정
+// 3. K-콘텐츠 50%+ 비율로 선정
 // ────────────────────────────────────────────
-function selectOnePerCategory(classified: TrendKeyword[]): TrendKeyword[] {
+function selectKeywords(classified: TrendKeyword[]): TrendKeyword[] {
   // 정치 제외
   const filtered = classified.filter((k) => k.category !== '정치');
 
   const selected: TrendKeyword[] = [];
-  const usedCategories = new Set<string>();
 
-  // 순위 순으로 카테고리별 1개씩 선정
+  // 1단계: K-콘텐츠 카테고리에서 최대 3개 선정
+  const kUsed = new Set<string>();
   for (const item of filtered) {
-    const cat = item.category;
-    if (!usedCategories.has(cat) && CATEGORIES.includes(cat as Category)) {
+    if ((K_CATEGORIES as readonly string[]).includes(item.category) && !kUsed.has(item.category)) {
       selected.push(item);
-      usedCategories.add(cat);
+      kUsed.add(item.category);
     }
-    // 5개 카테고리 모두 채웠으면 종료
-    if (selected.length >= CATEGORIES.length) break;
+    if (kUsed.size >= 2) break; // K-연예/한류, K-스포츠 각 1개
   }
+  // K-연예/한류에서 추가 1개 (다른 키워드)
+  if (selected.length < 3) {
+    for (const item of filtered) {
+      if (item.category === 'K-연예/한류' && !selected.includes(item)) {
+        selected.push(item);
+        break;
+      }
+    }
+  }
+
+  // 2단계: 일반 카테고리에서 2개 선정
+  const generalUsed = new Set<string>();
+  for (const item of filtered) {
+    if ((GENERAL_CATEGORIES as readonly string[]).includes(item.category) && !generalUsed.has(item.category)) {
+      selected.push(item);
+      generalUsed.add(item.category);
+    }
+    if (selected.length >= 5) break;
+  }
+
+  console.log(`[selectKeywords] K-콘텐츠: ${selected.filter(s => (K_CATEGORIES as readonly string[]).includes(s.category)).length}개, 일반: ${selected.filter(s => (GENERAL_CATEGORIES as readonly string[]).includes(s.category)).length}개`);
 
   return selected;
 }
@@ -190,12 +210,11 @@ content: <h2> 4개+, 각300자+, <p><strong><ul><li>, 전망/결론
   let parsed;
   try {
     parsed = JSON.parse(extractJSON(text));
-  } catch (e) {
+  } catch {
     console.error('[generateBlog] JSON 파싱 실패, 원문:', text.slice(0, 500));
     throw new Error('블로그 생성 JSON 파싱 실패');
   }
 
-  // excerpt → metaDesc 호환
   const metaDesc = (parsed.metaDesc || parsed.excerpt || '').slice(0, 150);
   return {
     title: parsed.title,
@@ -208,18 +227,17 @@ content: <h2> 4개+, 각300자+, <p><strong><ul><li>, 전망/결론
 }
 
 // ────────────────────────────────────────────
-// 6. DALL-E 3 이미지 생성
+// 6. DALL-E 3 이미지 생성 (타임아웃 강화)
 // ────────────────────────────────────────────
 async function generateImage(keyword: string, category: string): Promise<string | null> {
   try {
-    // 키워드 → 영어 프롬프트 변환
     const promptRes = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 200,
       messages: [
         {
           role: 'user',
-          content: `Create a DALL-E 3 image prompt in English for a blog about "${keyword}" (category: ${category}). 
+          content: `Create a DALL-E 3 image prompt in English for a blog about "${keyword}" (category: ${category}).
 Requirements: no human faces, professional blog thumbnail style, clean and modern, relevant to the topic.
 Respond with only the English prompt, no other text.`,
         },
@@ -227,6 +245,8 @@ Respond with only the English prompt, no other text.`,
     });
     const dallePrompt =
       promptRes.content[0].type === 'text' ? promptRes.content[0].text.trim() : keyword;
+
+    console.log(`[generateImage] DALL-E 프롬프트: ${dallePrompt.slice(0, 100)}`);
 
     const { OpenAI } = await import('openai');
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -238,9 +258,11 @@ Respond with only the English prompt, no other text.`,
       style: 'natural',
       n: 1,
     });
-    return imgRes.data?.[0]?.url ?? null;
+    const url = imgRes.data?.[0]?.url ?? null;
+    console.log(`[generateImage] 결과: ${url ? '성공' : '실패 (null)'}`);
+    return url;
   } catch (e) {
-    console.error('DALL-E 생성 실패:', e);
+    console.error('[generateImage] DALL-E 생성 실패:', e instanceof Error ? e.message : e);
     return null;
   }
 }
@@ -306,35 +328,42 @@ async function postToWordPress(params: {
   let featuredMediaId: number | undefined;
   if (params.imageUrl) {
     try {
-      const imgFetch = await fetch(params.imageUrl);
+      const imgFetch = await fetch(params.imageUrl, { signal: AbortSignal.timeout(30000) });
       const imgBuffer = await imgFetch.arrayBuffer();
       const mediaRes = await fetch(`${wpBase}/wp-json/wp/v2/media`, {
         method: 'POST',
         headers: {
           Authorization: `Basic ${auth}`,
           'Content-Type': 'image/png',
-          'Content-Disposition': `attachment; filename="${params.keyword}-thumbnail.png"`,
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(params.keyword)}-thumbnail.png"`,
         },
         body: imgBuffer,
+        signal: AbortSignal.timeout(30000),
       });
       const media = await mediaRes.json();
       if (media.id) {
         featuredMediaId = media.id;
-        // alt text 설정
         await fetch(`${wpBase}/wp-json/wp/v2/media/${media.id}`, {
           method: 'POST', headers,
           body: JSON.stringify({ alt_text: params.keyword }),
         });
+        console.log(`[postToWP] 이미지 업로드 성공: mediaId=${media.id}`);
       }
     } catch (e) {
-      console.error('WP 미디어 업로드 실패:', e);
+      console.error('[postToWP] WP 미디어 업로드 실패:', e instanceof Error ? e.message : e);
     }
+  }
+
+  // AI 이미지 안내 문구
+  let finalContent = params.content;
+  if (featuredMediaId) {
+    finalContent += '\n<p style="color:#888;font-size:0.85em;border-top:1px solid #eee;margin-top:30px;padding-top:15px;text-align:center;">※ 본문의 이미지는 기사의 내용을 바탕으로 AI로 재구성하였습니다.</p>';
   }
 
   // 포스트 발행
   const postBody: Record<string, unknown> = {
     title: params.title,
-    content: params.content,
+    content: finalContent,
     status: 'publish',
     excerpt: params.metaDesc.slice(0, 150),
     tags: tagIds,
@@ -379,13 +408,13 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 2. 카테고리 분류
+    // 2. 카테고리 분류 (K-콘텐츠 기준)
     console.log('[auto-publish] 카테고리 분류 중...');
     const classified = await classifyKeywords(keywords);
     console.log('[auto-publish] 분류 결과:', classified);
 
-    // 3. 카테고리별 1개 선정
-    const selected = selectOnePerCategory(classified);
+    // 3. K-콘텐츠 50%+ 비율로 선정
+    const selected = selectKeywords(classified);
     console.log('[auto-publish] 선정된 키워드:', selected);
 
     // 4. 선정된 키워드별 순차 처리
@@ -400,7 +429,7 @@ export async function GET(req: NextRequest) {
         // 블로그 생성
         const blog = await generateBlog(keyword, category, news);
 
-        // DALL-E 이미지 생성
+        // DALL-E 이미지 생성 (실패해도 글은 발행)
         const imageUrl = await generateImage(keyword, category);
 
         // WP 포스팅

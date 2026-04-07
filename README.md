@@ -263,3 +263,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-07 | auto-publish 트렌드 수집 방식 변경 - 직접 RSS fetch 대신 기존 /api/trend/fetch API 내부 호출로 교체 |
 | 2026-04-07 | auto-publish WP_URL→WP_SITE_URL 환경변수명 수정, 블로그 JSON 파싱을 extractJSON 방식으로 개선 |
 | 2026-04-07 | trigger-publish 타임아웃 수정 - fire and forget 방식으로 변경, 즉시 응답 반환 |
+| 2026-04-07 | 자동발행 개선 - 중복발행 방지(5분 쿨다운), K-콘텐츠 5할 비율 조정, 이미지 생성 로깅 강화 |
