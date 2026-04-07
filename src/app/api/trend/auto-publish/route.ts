@@ -313,7 +313,8 @@ ${relatedPosts.map((p) => `- <a href="${p.url}">${p.title}</a>`).join('\n')}`
 ${news}
 
 SEO 블로그 글을 JSON으로 반환. 다른 텍스트 없이 JSON만:
-{"title":"제목 40~60자","slug":"english-slug","content":"<h2>소제목1</h2><p>본문300자+</p><h2>소제목2</h2><p>본문300자+</p><h2>소제목3</h2><p>본문300자+</p>","excerpt":"메타설명 140자이내","tags":["태그1","태그2","태그3","태그4","태그5"]}
+{"title":"제목 40~60자","slug":"seo-english-slug","content":"<h2>소제목1</h2><p>본문300자+</p><h2>소제목2</h2><p>본문300자+</p><h2>소제목3</h2><p>본문300자+</p>","excerpt":"메타설명 140자이내","tags":["태그1","태그2","태그3","태그4","태그5"]}
+slug: 핵심 키워드만 영문 변환, 50자 이내, 소문자, 하이픈 구분 (예: "bts-comeback-2026-highlights")
 content는 1500자 이상 HTML(<h2><p><strong><ul><li>). 소제목 3개+, 각 300자+. 오늘(${today}) 기준 작성.
 excerpt는 반드시 140자 이내로 작성.${linkInstruction}`;
 
@@ -344,12 +345,18 @@ excerpt는 반드시 140자 이내로 작성.${linkInstruction}`;
   }
 
   const metaDesc = (parsed.metaDesc as string || parsed.excerpt as string || '').slice(0, 150);
+
+  // slug 정제: 영문/숫자/하이픈만, 50자 이내
+  let slug = (parsed.slug as string || '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  if (slug.length > 50) slug = slug.slice(0, 50).replace(/-$/, '');
+  if (!slug) slug = keyword.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase().slice(0, 50).replace(/-+/g, '-').replace(/-$/, '');
+
   return {
     title: parsed.title as string,
     content,
     metaDesc,
     tags: (parsed.tags as string[]) || [],
-    slug: parsed.slug as string,
+    slug,
   };
 }
 
@@ -357,7 +364,7 @@ excerpt는 반드시 140자 이내로 작성.${linkInstruction}`;
 // WP draft 저장 (이미지 없이)
 // ────────────────────────────────────────────
 async function postDraftToWP(params: {
-  title: string; content: string; metaDesc: string; tags: string[]; category: string; keyword: string;
+  title: string; content: string; metaDesc: string; tags: string[]; category: string; keyword: string; slug?: string;
 }): Promise<{ postId: number; wpUrl: string }> {
   const wpBase = process.env.WP_SITE_URL;
   const wpUser = process.env.WP_USERNAME;
@@ -405,6 +412,7 @@ async function postDraftToWP(params: {
       _yoast_wpseo_metadesc: safeExcerpt,
     },
   };
+  if (params.slug) postBody.slug = params.slug;
   if (categoryId) postBody.categories = [categoryId];
 
   const postRes = await fetch(`${wpBase}/wp-json/wp/v2/posts`, { method: 'POST', headers, body: JSON.stringify(postBody) });
@@ -447,7 +455,7 @@ export async function GET(req: NextRequest) {
         const blog = await generateBlog(keyword, category, news);
         const { postId, wpUrl } = await postDraftToWP({
           title: blog.title, content: blog.content, metaDesc: blog.metaDesc,
-          tags: blog.tags, category, keyword,
+          tags: blog.tags, category, keyword, slug: blog.slug,
         });
 
         // Firestore에 pending 상태로 저장
