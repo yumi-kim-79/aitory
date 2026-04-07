@@ -251,10 +251,61 @@ ${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 }
 
 // ────────────────────────────────────────────
+// WP 같은 카테고리 최근 글 조회
+// ────────────────────────────────────────────
+async function fetchRelatedPosts(category: string): Promise<{ title: string; url: string }[]> {
+  const wpBase = process.env.WP_SITE_URL;
+  const wpUser = process.env.WP_USERNAME;
+  const wpPass = process.env.WP_APP_PASSWORD;
+  if (!wpBase || !wpUser || !wpPass) return [];
+
+  const auth = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
+  const headers = { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' };
+
+  try {
+    // 카테고리 ID 조회
+    const catRes = await fetch(
+      `${wpBase}/wp-json/wp/v2/categories?search=${encodeURIComponent(category)}`,
+      { headers, signal: AbortSignal.timeout(8000) }
+    );
+    if (!catRes.ok) return [];
+    const cats = await catRes.json();
+    if (!cats.length) return [];
+    const catId = cats[0].id;
+
+    // 최근 발행 글 3개
+    const postsRes = await fetch(
+      `${wpBase}/wp-json/wp/v2/posts?categories=${catId}&status=publish&per_page=3&orderby=date`,
+      { headers, signal: AbortSignal.timeout(8000) }
+    );
+    if (!postsRes.ok) return [];
+    const posts = await postsRes.json();
+
+    return posts.map((p: { title: { rendered: string }; link: string }) => ({
+      title: p.title.rendered.replace(/<[^>]+>/g, ''),
+      url: p.link,
+    }));
+  } catch (e) {
+    console.error('[fetchRelatedPosts] 에러:', e instanceof Error ? e.message : e);
+    return [];
+  }
+}
+
+// ────────────────────────────────────────────
 // Claude 블로그 글 생성
 // ────────────────────────────────────────────
 async function generateBlog(keyword: string, category: string, news: string) {
   const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  // 같은 카테고리 최근 글 조회
+  const relatedPosts = await fetchRelatedPosts(category);
+  console.log(`[generateBlog] ${category} 관련 글 ${relatedPosts.length}개`);
+
+  const linkInstruction = relatedPosts.length > 0
+    ? `\n본문 중 자연스러운 위치에 아래 관련 글 중 1~2개를 앵커 태그로 링크 삽입:
+${relatedPosts.map((p) => `- <a href="${p.url}">${p.title}</a>`).join('\n')}`
+    : '';
+
   const prompt = `키워드: ${keyword}
 카테고리: ${category}
 오늘: ${today}
@@ -264,7 +315,7 @@ ${news}
 SEO 블로그 글을 JSON으로 반환. 다른 텍스트 없이 JSON만:
 {"title":"제목 40~60자","slug":"english-slug","content":"<h2>소제목1</h2><p>본문300자+</p><h2>소제목2</h2><p>본문300자+</p><h2>소제목3</h2><p>본문300자+</p>","excerpt":"메타설명 140자이내","tags":["태그1","태그2","태그3","태그4","태그5"]}
 content는 1500자 이상 HTML(<h2><p><strong><ul><li>). 소제목 3개+, 각 300자+. 오늘(${today}) 기준 작성.
-excerpt는 반드시 140자 이내로 작성.`;
+excerpt는 반드시 140자 이내로 작성.${linkInstruction}`;
 
   const res = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
@@ -283,10 +334,19 @@ excerpt는 반드시 140자 이내로 작성.`;
     throw new Error('블로그 생성 JSON 파싱 실패');
   }
 
+  // 관련 글 섹션 추가
+  let content = parsed.content as string;
+  if (relatedPosts.length > 0) {
+    const relatedHtml = relatedPosts
+      .map((p) => `<li><a href="${p.url}">${p.title}</a></li>`)
+      .join('\n');
+    content += `\n<h3>관련 글</h3>\n<ul>\n${relatedHtml}\n</ul>`;
+  }
+
   const metaDesc = (parsed.metaDesc as string || parsed.excerpt as string || '').slice(0, 150);
   return {
     title: parsed.title as string,
-    content: parsed.content as string,
+    content,
     metaDesc,
     tags: (parsed.tags as string[]) || [],
     slug: parsed.slug as string,
