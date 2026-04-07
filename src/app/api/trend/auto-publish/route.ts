@@ -34,69 +34,37 @@ interface PublishResult {
 // ────────────────────────────────────────────
 // 1. Google Trends RSS 수집 (TOP 15)
 // ────────────────────────────────────────────
-interface FetchDebug {
-  url: string;
-  status: number;
-  xmlLength: number;
-  xmlPreview: string;
-  cdataMatches: number;
-  plainTitleMatches: number;
-  method: string;
-}
+async function fetchTrendKeywords(): Promise<{ keywords: string[]; debug: { source: string; error?: string } }> {
+  // 기존 /api/trend/fetch API를 내부 호출 (프론트엔드에서 정상 작동 확인됨)
+  const baseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'https://aitory.vercel.app';
 
-async function fetchTrendKeywords(): Promise<{ keywords: string[]; debug: FetchDebug }> {
-  const urls = [
-    'https://trends.google.com/trends/trendingsearches/daily/rss?geo=KR',
-    'https://trends.google.co.kr/trends/trendingsearches/daily/rss?geo=KR',
-  ];
+  const url = `${baseUrl}/api/trend/fetch`;
+  console.log(`[fetchTrends] 내부 API 호출: ${url}`);
 
-  for (const url of urls) {
-    try {
-      console.log(`[fetchTrends] 시도: ${url}`);
-      const res = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' },
-        signal: AbortSignal.timeout(10000),
-      });
-      console.log(`[fetchTrends] 응답 status: ${res.status}`);
-      if (!res.ok) continue;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    console.log(`[fetchTrends] 응답 status: ${res.status}`);
 
-      const xml = await res.text();
-      console.log(`[fetchTrends] XML 길이: ${xml.length}`);
-      console.log(`[fetchTrends] XML 앞 500자: ${xml.slice(0, 500)}`);
-
-      // 1차: CDATA 방식
-      const cdataMatches = [...xml.matchAll(/<title><!\[CDATA\[([^\]]+)\]\]><\/title>/g)];
-      console.log(`[fetchTrends] CDATA title 매치: ${cdataMatches.length}개`);
-
-      if (cdataMatches.length > 1) {
-        return {
-          keywords: cdataMatches.slice(1, 16).map((m) => m[1].trim()),
-          debug: { url, status: res.status, xmlLength: xml.length, xmlPreview: xml.slice(0, 300), cdataMatches: cdataMatches.length, plainTitleMatches: 0, method: 'cdata' },
-        };
-      }
-
-      // 2차: 일반 <title> 태그
-      const plainMatches = [...xml.matchAll(/<title>([^<]+)<\/title>/g)];
-      console.log(`[fetchTrends] plain title 매치: ${plainMatches.length}개`);
-
-      if (plainMatches.length > 1) {
-        return {
-          keywords: plainMatches.slice(1, 16).map((m) => m[1].trim()),
-          debug: { url, status: res.status, xmlLength: xml.length, xmlPreview: xml.slice(0, 300), cdataMatches: cdataMatches.length, plainTitleMatches: plainMatches.length, method: 'plain' },
-        };
-      }
-
-      // 매치 실패 시 다음 URL 시도 전 debug 저장
-      console.error(`[fetchTrends] 매치 실패, XML preview: ${xml.slice(0, 500)}`);
-    } catch (err) {
-      console.error(`[fetchTrends] ${url} 에러:`, err instanceof Error ? err.message : err);
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[fetchTrends] API 에러:`, text.slice(0, 300));
+      return { keywords: [], debug: { source: url, error: `HTTP ${res.status}: ${text.slice(0, 200)}` } };
     }
-  }
 
-  return {
-    keywords: [],
-    debug: { url: 'all failed', status: 0, xmlLength: 0, xmlPreview: '', cdataMatches: 0, plainTitleMatches: 0, method: 'none' },
-  };
+    const data = await res.json();
+    const keywords = (data.keywords || []).map((k: { title: string }) => k.title).slice(0, 15);
+    console.log(`[fetchTrends] 키워드 ${keywords.length}개 수집:`, keywords);
+
+    return { keywords, debug: { source: url } };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[fetchTrends] 에러:`, msg);
+    return { keywords: [], debug: { source: url, error: msg } };
+  }
 }
 
 // ────────────────────────────────────────────
@@ -447,7 +415,7 @@ export async function GET(req: NextRequest) {
       publishedAt: new Date().toISOString(),
       categoriesSelected: selected.map((s) => `${s.category}: ${s.keyword}`),
       results,
-      debugInfo: { trendSource: trendDebug.url, trendMethod: trendDebug.method, keywordCount: keywords.length },
+      debugInfo: { trendSource: trendDebug.source, keywordCount: keywords.length },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
