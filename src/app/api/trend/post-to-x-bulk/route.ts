@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb } from '@/lib/firebase-admin';
+import { verifyToken } from '@/lib/middleware';
+import { getUserDoc } from '@/lib/auth';
 
 export const maxDuration = 300;
 
@@ -129,12 +131,15 @@ async function fetchPostMeta(postId: number): Promise<{ title: string; excerpt: 
 }
 
 // ────────────────────────────────────────────
-// Cron 핸들러: tweetUrl 없는 최근 글에 트윗 발행
+// 핸들러: tweetUrl 없는 최근 글에 트윗 발행 (관리자 전용)
 // ────────────────────────────────────────────
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function POST(request: Request) {
+  const decoded = await verifyToken(request);
+  if (!decoded) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
+
+  const userDoc = await getUserDoc(decoded.userId);
+  if (!userDoc || userDoc.role !== 'admin') {
+    return NextResponse.json({ error: '관리자 권한이 필요합니다.' }, { status: 403 });
   }
 
   const results: TweetResult[] = [];
