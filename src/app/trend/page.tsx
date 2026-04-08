@@ -399,7 +399,7 @@ export default function TrendPage() {
                 disabled={autoTweeting}
                 className="w-full py-3 bg-sky-500 text-white rounded-xl font-medium hover:bg-sky-600 disabled:bg-sky-300 flex items-center justify-center gap-2 mt-3"
               >
-                {autoTweeting ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />트윗 발행 중... (1~3분 소요)</> : "🐦 3단계: X 트윗 발행 (DALL-E 이미지)"}
+                {autoTweeting ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />트윗 발행 중... (30초 이내)</> : "🐦 3단계: X 트윗 발행 (텍스트만)"}
               </button>
             </div>
 

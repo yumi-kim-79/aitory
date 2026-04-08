@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 import { adminDb } from '@/lib/firebase-admin';
 import { verifyToken } from '@/lib/middleware';
 import { getUserDoc } from '@/lib/auth';
 
 export const maxDuration = 300;
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 interface TweetResult {
   keyword: string;
@@ -17,49 +14,10 @@ interface TweetResult {
 }
 
 // ────────────────────────────────────────────
-// 트윗용 DALL-E 이미지 생성 (1024x1024 standard)
-// ────────────────────────────────────────────
-async function generateTweetImage(keyword: string, category: string): Promise<Buffer | null> {
-  try {
-    const promptRes = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 200,
-      messages: [{
-        role: 'user',
-        content: `Create a DALL-E 3 image prompt in English for a Twitter post about "${keyword}" (category: ${category}).
-Requirements: square 1:1 composition, no human faces, no text/letters, vibrant and eye-catching, social media optimized, professional quality.
-Respond with only the English prompt, no other text.`,
-      }],
-    });
-    const dallePrompt = promptRes.content[0].type === 'text' ? promptRes.content[0].text.trim() : keyword;
-
-    const { OpenAI } = await import('openai');
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const imgRes = await openai.images.generate({
-      model: 'dall-e-3',
-      prompt: dallePrompt,
-      size: '1024x1024',
-      quality: 'standard',
-      style: 'natural',
-      n: 1,
-    });
-    const url = imgRes.data?.[0]?.url;
-    if (!url) return null;
-
-    const fetched = await fetch(url, { signal: AbortSignal.timeout(30000) });
-    if (!fetched.ok) return null;
-    return Buffer.from(await fetched.arrayBuffer());
-  } catch (e) {
-    console.error('[tweet-image] 생성 실패:', e instanceof Error ? e.message : e);
-    return null;
-  }
-}
-
-// ────────────────────────────────────────────
-// X 트윗 발행
+// X 트윗 발행 (텍스트 전용)
 // ────────────────────────────────────────────
 async function postToX(params: {
-  title: string; metaDesc: string; wpUrl: string; category: string; keyword: string;
+  title: string; metaDesc: string; wpUrl: string; category: string;
 }): Promise<{ tweetUrl: string }> {
   const { TwitterApi } = await import('twitter-api-v2');
   const apiKey = process.env.X_API_KEY;
@@ -85,22 +43,7 @@ async function postToX(params: {
     text = `📰 ${newTitle}\n\n${desc}\n\n🔗 ${params.wpUrl}\n\n#Kbuzz #한국트렌드 #${catTag}`;
   }
 
-  let mediaIds: [string] | undefined;
-  try {
-    const imgBuffer = await generateTweetImage(params.keyword, params.category);
-    if (imgBuffer) {
-      const mediaId = await xClient.v1.uploadMedia(imgBuffer, { mimeType: 'image/png' });
-      mediaIds = [mediaId];
-      console.log(`[tweet] 이미지 업로드 성공: ${mediaId}`);
-    }
-  } catch (e) {
-    console.error('[tweet] 이미지 업로드 실패, 텍스트만 트윗:', e instanceof Error ? e.message : e);
-  }
-
-  const tweet = mediaIds
-    ? await xClient.v2.tweet(text, { media: { media_ids: mediaIds } })
-    : await xClient.v2.tweet(text);
-
+  const tweet = await xClient.v2.tweet(text);
   if (!tweet.data?.id) throw new Error('트윗 ID 없음');
   return { tweetUrl: `https://x.com/i/web/status/${tweet.data.id}` };
 }
@@ -173,7 +116,7 @@ export async function POST(request: Request) {
         const title = meta?.title || keyword;
         const metaDesc = meta?.excerpt || keyword;
 
-        const { tweetUrl } = await postToX({ title, metaDesc, wpUrl, category, keyword });
+        const { tweetUrl } = await postToX({ title, metaDesc, wpUrl, category });
 
         await doc.ref.update({ tweetUrl, tweetError: null, tweetedAt: new Date() });
         results.push({ keyword, postId, success: true, tweetUrl });
@@ -186,7 +129,8 @@ export async function POST(request: Request) {
       }
 
       // 5초 간격 (X rate limit + DALL-E rate limit)
-      await new Promise((r) => setTimeout(r, 5000));
+      // 3초 간격 (X rate limit)
+      await new Promise((r) => setTimeout(r, 3000));
     }
 
     return NextResponse.json({
