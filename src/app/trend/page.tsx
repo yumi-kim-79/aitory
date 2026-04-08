@@ -315,9 +315,9 @@ export default function TrendPage() {
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-6">
               <h2 className="text-lg font-bold text-slate-900 mb-4">🤖 자동 발행 시스템</h2>
               <div className="space-y-3 text-sm text-slate-600 mb-6">
-                <p>매일 <strong>09:00</strong>, <strong>15:00</strong> (KST) 2단계 자동 발행</p>
-                <p><strong>1단계</strong> (09:00/15:00): 키워드 수집 → AI 블로그 글 → WP <span className="text-amber-600 font-medium">draft</span> 저장</p>
-                <p><strong>2단계</strong> (09:05/15:05): DALL-E 이미지 생성 → WP 이미지 업로드 → <span className="text-amber-600 font-medium">검수 후 수동 발행</span></p>
+                <p>매일 <strong>07:00</strong> (KST) 2단계 자동 발행</p>
+                <p><strong>1단계</strong> (07:00): 키워드 수집 → AI 블로그 글 → WP <span className="text-amber-600 font-medium">draft</span> 저장</p>
+                <p><strong>2단계</strong> (07:05): DALL-E 이미지 생성 → WP 이미지 업로드 → <span className="text-amber-600 font-medium">검수 후 수동 발행</span></p>
                 <p>K-콘텐츠 50%+: <strong>K-연예/한류</strong>(2), <strong>K-스포츠</strong>(1) + 일반(2)</p>
                 <p className="text-red-500">정치/선거/탄핵 키워드는 자동 제외됩니다.</p>
               </div>
