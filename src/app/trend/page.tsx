@@ -55,7 +55,7 @@ export default function TrendPage() {
   const [autoPublishing, setAutoPublishing] = useState(false);
   const [autoCooldown, setAutoCooldown] = useState(false);
   const [autoImagePublishing, setAutoImagePublishing] = useState(false);
-  const [autoResults, setAutoResults] = useState<{ keyword: string; ok?: boolean; success?: boolean; postUrl?: string; wpUrl?: string; error?: string }[]>([]);
+  const [autoResults, setAutoResults] = useState<{ keyword: string; ok?: boolean; success?: boolean; postUrl?: string; wpUrl?: string; tweetUrl?: string; tweetError?: string; error?: string }[]>([]);
 
   const [copied, setCopied] = useState("");
 
@@ -390,6 +390,10 @@ export default function TrendPage() {
                       <span className="font-medium text-sm">{r.success || r.ok ? "✅" : "❌"} {r.keyword}</span>
                       {(r.wpUrl || r.postUrl) && <a href={r.wpUrl || r.postUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">{r.wpUrl || r.postUrl}</a>}
                     </div>
+                    {r.tweetUrl && (
+                      <a href={r.tweetUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-600 underline mt-1 inline-block">🐦 트윗됨</a>
+                    )}
+                    {r.tweetError && <p className="text-xs text-amber-600 mt-1">🐦 트윗 실패: {r.tweetError}</p>}
                     {r.error && <p className="text-xs text-red-600 mt-1">{r.error}</p>}
                   </div>
                 ))}

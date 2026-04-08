@@ -46,6 +46,8 @@ interface PublishResult {
   category: string;
   success: boolean;
   wpUrl?: string;
+  tweetUrl?: string;
+  tweetError?: string;
   error?: string;
 }
 
@@ -329,6 +331,102 @@ excerpt는 반드시 140자 이내.${linkInstruction}`;
 }
 
 // ────────────────────────────────────────────
+// 트윗용 DALL-E 이미지 생성 (1024x1024 standard)
+// ────────────────────────────────────────────
+async function generateTweetImage(keyword: string, category: string): Promise<Buffer | null> {
+  try {
+    const promptRes = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 200,
+      messages: [{
+        role: 'user',
+        content: `Create a DALL-E 3 image prompt in English for a Twitter post about "${keyword}" (category: ${category}).
+Requirements: square 1:1 composition, no human faces, no text/letters, vibrant and eye-catching, social media optimized, professional quality.
+Respond with only the English prompt, no other text.`,
+      }],
+    });
+    const dallePrompt = promptRes.content[0].type === 'text' ? promptRes.content[0].text.trim() : keyword;
+
+    const { OpenAI } = await import('openai');
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const imgRes = await openai.images.generate({
+      model: 'dall-e-3',
+      prompt: dallePrompt,
+      size: '1024x1024',
+      quality: 'standard',
+      style: 'natural',
+      n: 1,
+    });
+    const url = imgRes.data?.[0]?.url;
+    if (!url) return null;
+
+    const fetched = await fetch(url, { signal: AbortSignal.timeout(30000) });
+    if (!fetched.ok) return null;
+    return Buffer.from(await fetched.arrayBuffer());
+  } catch (e) {
+    console.error('[tweet-image] 생성 실패:', e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+// ────────────────────────────────────────────
+// X(트위터) 트윗 발행
+// ────────────────────────────────────────────
+async function postToX(params: {
+  title: string; metaDesc: string; wpUrl: string; category: string; keyword: string;
+}): Promise<{ tweetUrl: string }> {
+  const { TwitterApi } = await import('twitter-api-v2');
+  const apiKey = process.env.X_API_KEY;
+  const apiSecret = process.env.X_API_SECRET;
+  const accessToken = process.env.X_ACCESS_TOKEN;
+  const accessSecret = process.env.X_ACCESS_TOKEN_SECRET;
+
+  if (!apiKey || !apiSecret || !accessToken || !accessSecret) {
+    throw new Error('X API 환경변수 부족');
+  }
+
+  const xClient = new TwitterApi({
+    appKey: apiKey, appSecret: apiSecret,
+    accessToken, accessSecret,
+  });
+
+  // 카테고리 해시태그
+  const catTag = params.category.replace(/[\/\s]/g, '');
+
+  // 트윗 텍스트 (280자 제한, URL은 23자 차지)
+  const desc = params.metaDesc.length > 80 ? params.metaDesc.slice(0, 77) + '...' : params.metaDesc;
+  let text = `📰 ${params.title}\n\n${desc}\n\n🔗 ${params.wpUrl}\n\n#Kbuzz #한국트렌드 #${catTag}`;
+  if (text.length > 280) {
+    const overflow = text.length - 280;
+    const newTitle = params.title.slice(0, params.title.length - overflow - 3) + '...';
+    text = `📰 ${newTitle}\n\n${desc}\n\n🔗 ${params.wpUrl}\n\n#Kbuzz #한국트렌드 #${catTag}`;
+  }
+
+  // 이미지 생성 + 업로드
+  let mediaIds: [string] | undefined;
+  try {
+    const imgBuffer = await generateTweetImage(params.keyword, params.category);
+    if (imgBuffer) {
+      const mediaId = await xClient.v1.uploadMedia(imgBuffer, { mimeType: 'image/png' });
+      mediaIds = [mediaId];
+      console.log(`[tweet] 이미지 업로드 성공: ${mediaId}`);
+    }
+  } catch (e) {
+    console.error('[tweet] 이미지 업로드 실패, 텍스트만 트윗:', e instanceof Error ? e.message : e);
+  }
+
+  // 트윗 발행
+  const tweet = mediaIds
+    ? await xClient.v2.tweet(text, { media: { media_ids: mediaIds } })
+    : await xClient.v2.tweet(text);
+
+  if (!tweet.data?.id) throw new Error('트윗 ID 없음');
+  const tweetUrl = `https://x.com/i/web/status/${tweet.data.id}`;
+  console.log(`[tweet] 발행 성공: ${tweetUrl}`);
+  return { tweetUrl };
+}
+
+// ────────────────────────────────────────────
 // WP draft 저장
 // ────────────────────────────────────────────
 async function postDraftToWP(params: {
@@ -452,14 +550,29 @@ export async function GET(req: NextRequest) {
               tags: blog.tags, category, keyword, slug: blog.slug,
             });
 
+            // X 트윗 발행 (실패해도 진행)
+            let tweetUrl: string | undefined;
+            let tweetError: string | undefined;
+            try {
+              const result = await postToX({
+                title: blog.title, metaDesc: blog.metaDesc, wpUrl, category, keyword,
+              });
+              tweetUrl = result.tweetUrl;
+            } catch (e) {
+              tweetError = e instanceof Error ? e.message : String(e);
+              console.error(`[tweet] ${keyword} 실패:`, tweetError);
+            }
+
             await adminDb.collection('aitory_published_keywords').add({
               keyword, category, wpUrl, postId,
               imageStatus: 'pending', status: 'draft', publishedAt: new Date(),
+              tweetUrl: tweetUrl || null,
+              tweetError: tweetError || null,
             });
 
-            return { keyword, category, postId, wpUrl };
+            return { keyword, category, postId, wpUrl, tweetUrl, tweetError };
           })(),
-          60000,
+          120000,
           keyword
         );
       })
@@ -467,7 +580,10 @@ export async function GET(req: NextRequest) {
 
     for (const s of settled) {
       if (s.status === 'fulfilled') {
-        results.push({ keyword: s.value.keyword, category: s.value.category, success: true, wpUrl: s.value.wpUrl });
+        results.push({
+          keyword: s.value.keyword, category: s.value.category, success: true,
+          wpUrl: s.value.wpUrl, tweetUrl: s.value.tweetUrl, tweetError: s.value.tweetError,
+        });
         console.log(`[auto-publish] draft 성공: ${s.value.keyword}`);
       } else {
         const msg = s.reason instanceof Error ? s.reason.message : String(s.reason);
