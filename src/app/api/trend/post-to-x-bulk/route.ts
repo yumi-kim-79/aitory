@@ -16,23 +16,48 @@ interface TweetResult {
 // ────────────────────────────────────────────
 // X 트윗 발행 (텍스트 전용)
 // ────────────────────────────────────────────
-async function postToX(params: {
-  title: string; metaDesc: string; wpUrl: string; category: string;
-}): Promise<{ tweetUrl: string }> {
+// 모듈 레벨에서 1회 클라이언트 생성/검증
+let _xClientCache: import('twitter-api-v2').TwitterApi | null = null;
+
+async function getXClient() {
+  if (_xClientCache) return _xClientCache;
+
   const { TwitterApi } = await import('twitter-api-v2');
   const apiKey = process.env.X_API_KEY;
   const apiSecret = process.env.X_API_SECRET;
   const accessToken = process.env.X_ACCESS_TOKEN;
   const accessSecret = process.env.X_ACCESS_TOKEN_SECRET;
 
+  // 환경변수 진단 로깅 (앞 4자리만)
+  console.log('[X-API] 환경변수 진단:', {
+    apiKey: apiKey ? `${apiKey.slice(0, 4)}... (${apiKey.length}자)` : '없음',
+    apiSecret: apiSecret ? `${apiSecret.slice(0, 4)}... (${apiSecret.length}자)` : '없음',
+    accessToken: accessToken ? `${accessToken.slice(0, 4)}... (${accessToken.length}자)` : '없음',
+    accessSecret: accessSecret ? `${accessSecret.slice(0, 4)}... (${accessSecret.length}자)` : '없음',
+  });
+
   if (!apiKey || !apiSecret || !accessToken || !accessSecret) {
-    throw new Error('X API 환경변수 부족');
+    throw new Error('X API 환경변수 부족 (X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET 확인 필요)');
   }
 
-  const xClient = new TwitterApi({
-    appKey: apiKey, appSecret: apiSecret,
-    accessToken, accessSecret,
-  });
+  // 공백/따옴표 trim
+  const cleaned = {
+    appKey: apiKey.trim().replace(/^["']|["']$/g, ''),
+    appSecret: apiSecret.trim().replace(/^["']|["']$/g, ''),
+    accessToken: accessToken.trim().replace(/^["']|["']$/g, ''),
+    accessSecret: accessSecret.trim().replace(/^["']|["']$/g, ''),
+  };
+
+  _xClientCache = new TwitterApi(cleaned);
+  return _xClientCache;
+}
+
+async function postToX(params: {
+  title: string; metaDesc: string; wpUrl: string; category: string;
+}): Promise<{ tweetUrl: string }> {
+  const xClient = await getXClient();
+  // readWrite 권한 명시 (OAuth 1.0a User Context)
+  const rwClient = xClient.readWrite;
 
   const catTag = params.category.replace(/[\/\s]/g, '');
   const desc = params.metaDesc.length > 80 ? params.metaDesc.slice(0, 77) + '...' : params.metaDesc;
@@ -43,9 +68,22 @@ async function postToX(params: {
     text = `📰 ${newTitle}\n\n${desc}\n\n🔗 ${params.wpUrl}\n\n#Kbuzz #한국트렌드 #${catTag}`;
   }
 
-  const tweet = await xClient.v2.tweet(text);
-  if (!tweet.data?.id) throw new Error('트윗 ID 없음');
-  return { tweetUrl: `https://x.com/i/web/status/${tweet.data.id}` };
+  try {
+    const tweet = await rwClient.v2.tweet(text);
+    if (!tweet.data?.id) throw new Error('트윗 ID 없음');
+    return { tweetUrl: `https://x.com/i/web/status/${tweet.data.id}` };
+  } catch (err) {
+    // twitter-api-v2 ApiResponseError 상세 진단
+    const e = err as { code?: number; data?: unknown; message?: string };
+    console.error('[X-API] 트윗 실패 상세:', { code: e.code, data: e.data, message: e.message });
+    if (e.code === 401) {
+      throw new Error('X API 401 Unauthorized: 앱 권한이 Read and Write인지 + 권한 변경 후 Access Token 재발급했는지 확인');
+    }
+    if (e.code === 403) {
+      throw new Error('X API 403 Forbidden: 앱 권한 또는 Free Tier 트윗 한도 초과');
+    }
+    throw err;
+  }
 }
 
 // ────────────────────────────────────────────
