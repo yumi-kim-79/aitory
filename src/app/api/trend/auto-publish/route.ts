@@ -100,11 +100,41 @@ async function fetchNews(keyword: string): Promise<string> {
       const desc = m[1].match(/<description>([\s\S]*?)<\/description>/)?.[1] ?? '';
       const pubDate = m[1].match(/<pubDate>(.*?)<\/pubDate>/)?.[1] ?? '';
       const date = pubDate ? new Date(pubDate).toISOString().slice(0, 10) : '';
-      return `제목: ${title.replace(/<[^>]+>/g, '')}${date ? ` (${date})` : ''}\n내용: ${desc.replace(/<[^>]+>/g, '').slice(0, 1000)}`;
+      return `${title.replace(/<[^>]+>/g, '')}${date ? ` (${date})` : ''}\n${desc.replace(/<[^>]+>/g, '').slice(0, 300)}`;
     }).join('\n\n');
   } catch {
     return `${keyword} 관련 최신 뉴스`;
   }
+}
+
+// ────────────────────────────────────────────
+// 마크다운 → HTML 변환
+// ────────────────────────────────────────────
+function markdownToHtml(md: string): string {
+  let html = md;
+  // 헤딩
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+  // 강조
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // 리스트
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/(<li>[\s\S]*?<\/li>)(?:\n(?!<li>))/g, '<ul>$1</ul>\n');
+  html = html.replace(/<\/ul>\s*<ul>/g, '');
+  // 단락 (이미 HTML 태그가 아닌 줄을 <p>로 감싸기)
+  const lines = html.split('\n');
+  const result: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    if (/^<(h[1-6]|ul|ol|li|p|strong|a|figure|img|div)/i.test(trimmed)) {
+      result.push(trimmed);
+    } else {
+      result.push(`<p>${trimmed}</p>`);
+    }
+  }
+  return result.join('\n');
 }
 
 // ────────────────────────────────────────────
@@ -290,22 +320,23 @@ ${relatedPosts.map((p) => `- <a href="${p.url}">${p.title}</a>`).join('\n')}`
 뉴스:
 ${news}
 
-SEO 블로그 글을 JSON으로 반환. 다른 텍스트 없이 JSON만:
-{"title":"제목 40~60자","slug":"seo-english-slug","content":"HTML 본문","excerpt":"메타설명 140자이내","tags":["태그1","태그2","태그3","태그4","태그5"]}
+SEO 블로그 글을 JSON으로 반환. 반드시 완전한 JSON만 반환, 중간에 절대 끊지 말 것. 다른 텍스트 없이 JSON만:
+{"title":"제목 40~60자","slug":"seo-english-slug","content":"마크다운 본문","excerpt":"메타설명 140자이내","tags":["태그1","태그2","태그3","태그4","태그5"]}
 
-slug: 핵심 키워드만 영문 변환, 50자 이내, 소문자, 하이픈 구분
-content 필수 요건:
-- 2000자 이상 HTML
-- <h2> 소제목 4개 이상, 각 소제목 아래 2~3개 <p> 단락
-- <strong>, <ul>, <li> 적극 활용
-- 구체적인 수치, 날짜, 인용구 포함
-- 뉴스 내용을 종합 분석하여 독자적 관점 제시
-- 오늘(${today}) 기준 최신 정보로 작성
-excerpt는 반드시 140자 이내.${linkInstruction}`;
+slug: 핵심 키워드 영문, 50자 이내, 소문자, 하이픈
+content 필수 요건 (마크다운 형식):
+- 2000자 이상
+- ## 소제목 4개 이상, 각 소제목 아래 2~3단락
+- **굵게**, - 리스트 활용
+- 구체적 수치/날짜/인용구 포함
+- 오늘(${today}) 기준 최신 정보
+excerpt는 반드시 140자 이내.${linkInstruction}
+
+⚠️ JSON content 안의 줄바꿈은 \\n으로 이스케이프, 따옴표는 \\"로 이스케이프할 것.`;
 
   const res = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 3500,
+    max_tokens: 2500,
     messages: [{ role: 'user', content: prompt }],
   });
 
@@ -316,7 +347,8 @@ excerpt는 반드시 140자 이내.${linkInstruction}`;
   try { parsed = tryParseJSON(text); }
   catch { throw new Error('블로그 생성 JSON 파싱 실패'); }
 
-  let content = parsed.content as string;
+  // 마크다운 → HTML 변환
+  let content = markdownToHtml(parsed.content as string);
   if (relatedPosts.length > 0) {
     const relatedHtml = relatedPosts.map((p) => `<li><a href="${p.url}">${p.title}</a></li>`).join('\n');
     content += `\n<h3>관련 글</h3>\n<ul>\n${relatedHtml}\n</ul>`;
@@ -572,7 +604,7 @@ export async function GET(req: NextRequest) {
 
             return { keyword, category, postId, wpUrl, tweetUrl, tweetError };
           })(),
-          120000,
+          90000,
           keyword
         );
       })
