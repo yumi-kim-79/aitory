@@ -55,6 +55,7 @@ export default function TrendPage() {
   const [autoPublishing, setAutoPublishing] = useState(false);
   const [autoCooldown, setAutoCooldown] = useState(false);
   const [autoImagePublishing, setAutoImagePublishing] = useState(false);
+  const [autoTweeting, setAutoTweeting] = useState(false);
   const [autoResults, setAutoResults] = useState<{ keyword: string; ok?: boolean; success?: boolean; postUrl?: string; wpUrl?: string; tweetUrl?: string; tweetError?: string; error?: string }[]>([]);
 
   const [copied, setCopied] = useState("");
@@ -315,9 +316,10 @@ export default function TrendPage() {
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-6">
               <h2 className="text-lg font-bold text-slate-900 mb-4">🤖 자동 발행 시스템</h2>
               <div className="space-y-3 text-sm text-slate-600 mb-6">
-                <p>매일 <strong>07:00</strong> (KST) 2단계 자동 발행</p>
+                <p>매일 <strong>07:00</strong> (KST) 자동 발행</p>
                 <p><strong>1단계</strong> (07:00): 키워드 수집 → AI 블로그 글 → WP <span className="text-amber-600 font-medium">draft</span> 저장</p>
                 <p><strong>2단계</strong> (07:05): DALL-E 이미지 생성 → WP 이미지 업로드 → <span className="text-amber-600 font-medium">검수 후 수동 발행</span></p>
+                <p><strong>3단계</strong> (수동): X 트윗 발행 (DALL-E 이미지 첨부)</p>
                 <p>K-콘텐츠 50%: <strong>K-연예/한류</strong>(3), <strong>K-스포츠</strong>(2) + 일반(5) = 10개</p>
                 <p className="text-red-500">정치/선거/탄핵 키워드는 자동 제외됩니다.</p>
               </div>
@@ -378,6 +380,26 @@ export default function TrendPage() {
                 className="w-full py-3 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 disabled:bg-amber-300 flex items-center justify-center gap-2 mt-3"
               >
                 {autoImagePublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />이미지 생성 중... (2~4분)</> : "🖼️ 2단계: 이미지 생성 (검수 후 수동 발행)"}
+              </button>
+              <button
+                onClick={async () => {
+                  setAutoTweeting(true); setAutoResults([]);
+                  try {
+                    const token = await getIdToken();
+                    if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); return; }
+                    const res = await fetch("/api/trend/trigger-tweet-bulk", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(280000) });
+                    const data = await res.json();
+                    if (!res.ok) { setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]); }
+                    else if (data.results?.length) { setAutoResults(data.results.map((r: { keyword: string; success: boolean; tweetUrl?: string; error?: string }) => ({ keyword: r.keyword, success: r.success, ok: r.success, tweetUrl: r.tweetUrl, error: r.error }))); }
+                    else if (data.message) { setAutoResults([{ keyword: "완료", success: true, error: data.message }]); }
+                  } catch (err) {
+                    setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
+                  } finally { setAutoTweeting(false); }
+                }}
+                disabled={autoTweeting}
+                className="w-full py-3 bg-sky-500 text-white rounded-xl font-medium hover:bg-sky-600 disabled:bg-sky-300 flex items-center justify-center gap-2 mt-3"
+              >
+                {autoTweeting ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />트윗 발행 중... (2~5분)</> : "🐦 3단계: X 트윗 발행 (DALL-E 이미지)"}
               </button>
             </div>
 

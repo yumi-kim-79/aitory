@@ -100,7 +100,7 @@ async function fetchNews(keyword: string): Promise<string> {
       const desc = m[1].match(/<description>([\s\S]*?)<\/description>/)?.[1] ?? '';
       const pubDate = m[1].match(/<pubDate>(.*?)<\/pubDate>/)?.[1] ?? '';
       const date = pubDate ? new Date(pubDate).toISOString().slice(0, 10) : '';
-      return `${title.replace(/<[^>]+>/g, '')}${date ? ` (${date})` : ''}\n${desc.replace(/<[^>]+>/g, '').slice(0, 300)}`;
+      return `${title.replace(/<[^>]+>/g, '')}${date ? ` (${date})` : ''}\n${desc.replace(/<[^>]+>/g, '').slice(0, 500)}`;
     }).join('\n\n');
   } catch {
     return `${keyword} 관련 최신 뉴스`;
@@ -582,29 +582,15 @@ export async function GET(req: NextRequest) {
               tags: blog.tags, category, keyword, slug: blog.slug,
             });
 
-            // X 트윗 발행 (실패해도 진행)
-            let tweetUrl: string | undefined;
-            let tweetError: string | undefined;
-            try {
-              const result = await postToX({
-                title: blog.title, metaDesc: blog.metaDesc, wpUrl, category, keyword,
-              });
-              tweetUrl = result.tweetUrl;
-            } catch (e) {
-              tweetError = e instanceof Error ? e.message : String(e);
-              console.error(`[tweet] ${keyword} 실패:`, tweetError);
-            }
-
             await adminDb.collection('aitory_published_keywords').add({
               keyword, category, wpUrl, postId,
               imageStatus: 'pending', status: 'draft', publishedAt: new Date(),
-              tweetUrl: tweetUrl || null,
-              tweetError: tweetError || null,
+              tweetUrl: null, tweetError: null,
             });
 
-            return { keyword, category, postId, wpUrl, tweetUrl, tweetError };
+            return { keyword, category, postId, wpUrl };
           })(),
-          90000,
+          60000,
           keyword
         );
       })
@@ -614,7 +600,7 @@ export async function GET(req: NextRequest) {
       if (s.status === 'fulfilled') {
         results.push({
           keyword: s.value.keyword, category: s.value.category, success: true,
-          wpUrl: s.value.wpUrl, tweetUrl: s.value.tweetUrl, tweetError: s.value.tweetError,
+          wpUrl: s.value.wpUrl,
         });
         console.log(`[auto-publish] draft 성공: ${s.value.keyword}`);
       } else {
