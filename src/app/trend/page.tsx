@@ -387,11 +387,10 @@ export default function TrendPage() {
                   try {
                     const token = await getIdToken();
                     if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); return; }
-                    const res = await fetch("/api/trend/trigger-tweet-bulk", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(280000) });
+                    const res = await fetch("/api/trend/trigger-tweet-bulk", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30000) });
                     const data = await res.json();
                     if (!res.ok) { setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]); }
-                    else if (data.results?.length) { setAutoResults(data.results.map((r: { keyword: string; success: boolean; tweetUrl?: string; error?: string }) => ({ keyword: r.keyword, success: r.success, ok: r.success, tweetUrl: r.tweetUrl, error: r.error }))); }
-                    else if (data.message) { setAutoResults([{ keyword: "완료", success: true, error: data.message }]); }
+                    else { setAutoResults([{ keyword: "🐦 트윗 발행 시작", success: true, error: data.message || "@KbuzzNews에서 확인해주세요." }]); }
                   } catch (err) {
                     setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
                   } finally { setAutoTweeting(false); }
@@ -399,7 +398,7 @@ export default function TrendPage() {
                 disabled={autoTweeting}
                 className="w-full py-3 bg-sky-500 text-white rounded-xl font-medium hover:bg-sky-600 disabled:bg-sky-300 flex items-center justify-center gap-2 mt-3"
               >
-                {autoTweeting ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />트윗 발행 중... (2~5분)</> : "🐦 3단계: X 트윗 발행 (DALL-E 이미지)"}
+                {autoTweeting ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />요청 중...</> : "🐦 3단계: X 트윗 발행 (DALL-E 이미지)"}
               </button>
             </div>
 

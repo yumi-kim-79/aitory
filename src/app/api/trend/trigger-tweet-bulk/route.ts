@@ -1,7 +1,8 @@
-export const maxDuration = 300;
+export const maxDuration = 30;
 
 import { verifyToken } from "@/lib/middleware";
 import { getUserDoc } from "@/lib/auth";
+import { after } from "next/server";
 
 export async function POST(request: Request) {
   try {
@@ -23,25 +24,25 @@ export async function POST(request: Request) {
         : "https://aitory.vercel.app";
 
     const targetUrl = `${baseUrl}/api/trend/post-to-x-bulk`;
-    console.log("[trigger-tweet] 직접 호출:", targetUrl);
+    console.log("[trigger-tweet] 백그라운드 호출 예약:", targetUrl);
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 280000);
-
-    const res = await fetch(targetUrl, {
-      headers: { Authorization: `Bearer ${cronSecret}` },
-      signal: controller.signal,
+    // Vercel after()로 응답 후 백그라운드 실행 보장
+    after(async () => {
+      try {
+        const res = await fetch(targetUrl, {
+          headers: { Authorization: `Bearer ${cronSecret}` },
+        });
+        const text = await res.text();
+        console.log("[trigger-tweet] 백그라운드 완료:", res.status, text.slice(0, 500));
+      } catch (err) {
+        console.error("[trigger-tweet] 백그라운드 에러:", err instanceof Error ? err.message : err);
+      }
     });
-    clearTimeout(timeout);
 
-    const text = await res.text();
-    console.log("[trigger-tweet] 응답:", res.status, text.slice(0, 500));
-
-    let data;
-    try { data = JSON.parse(text); }
-    catch { return Response.json({ error: `응답 파싱 실패: ${text.slice(0, 200)}` }, { status: 502 }); }
-
-    return Response.json(data, { status: res.status });
+    return Response.json({
+      success: true,
+      message: "트윗 발행을 백그라운드에서 시작했습니다. 잠시 후 @KbuzzNews에서 확인해주세요.",
+    });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 오류";
     console.error("[trigger-tweet] 오류:", msg);
