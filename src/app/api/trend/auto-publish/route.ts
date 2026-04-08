@@ -92,11 +92,13 @@ async function fetchNews(keyword: string): Promise<string> {
       { signal: AbortSignal.timeout(10000) }
     );
     const xml = await res.text();
-    const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 5);
+    const items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].slice(0, 10);
     return items.map((m) => {
       const title = m[1].match(/<title>(.*?)<\/title>/)?.[1] ?? '';
       const desc = m[1].match(/<description>([\s\S]*?)<\/description>/)?.[1] ?? '';
-      return `제목: ${title.replace(/<[^>]+>/g, '')}\n내용: ${desc.replace(/<[^>]+>/g, '').slice(0, 200)}`;
+      const pubDate = m[1].match(/<pubDate>(.*?)<\/pubDate>/)?.[1] ?? '';
+      const date = pubDate ? new Date(pubDate).toISOString().slice(0, 10) : '';
+      return `제목: ${title.replace(/<[^>]+>/g, '')}${date ? ` (${date})` : ''}\n내용: ${desc.replace(/<[^>]+>/g, '').slice(0, 1000)}`;
     }).join('\n\n');
   } catch {
     return `${keyword} 관련 최신 뉴스`;
@@ -287,14 +289,21 @@ ${relatedPosts.map((p) => `- <a href="${p.url}">${p.title}</a>`).join('\n')}`
 ${news}
 
 SEO 블로그 글을 JSON으로 반환. 다른 텍스트 없이 JSON만:
-{"title":"제목 40~60자","slug":"seo-english-slug","content":"<h2>소제목1</h2><p>본문300자+</p><h2>소제목2</h2><p>본문300자+</p><h2>소제목3</h2><p>본문300자+</p>","excerpt":"메타설명 140자이내","tags":["태그1","태그2","태그3","태그4","태그5"]}
+{"title":"제목 40~60자","slug":"seo-english-slug","content":"HTML 본문","excerpt":"메타설명 140자이내","tags":["태그1","태그2","태그3","태그4","태그5"]}
+
 slug: 핵심 키워드만 영문 변환, 50자 이내, 소문자, 하이픈 구분
-content는 1500자 이상 HTML(<h2><p><strong><ul><li>). 소제목 3개+, 각 300자+. 오늘(${today}) 기준 작성.
-excerpt는 반드시 140자 이내로 작성.${linkInstruction}`;
+content 필수 요건:
+- 2000자 이상 HTML
+- <h2> 소제목 4개 이상, 각 소제목 아래 2~3개 <p> 단락
+- <strong>, <ul>, <li> 적극 활용
+- 구체적인 수치, 날짜, 인용구 포함
+- 뉴스 내용을 종합 분석하여 독자적 관점 제시
+- 오늘(${today}) 기준 최신 정보로 작성
+excerpt는 반드시 140자 이내.${linkInstruction}`;
 
   const res = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 2500,
+    max_tokens: 3500,
     messages: [{ role: 'user', content: prompt }],
   });
 
