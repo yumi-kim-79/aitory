@@ -318,7 +318,7 @@ export default function TrendPage() {
                 <p>매일 <strong>07:00</strong> (KST) 2단계 자동 발행</p>
                 <p><strong>1단계</strong> (07:00): 키워드 수집 → AI 블로그 글 → WP <span className="text-amber-600 font-medium">draft</span> 저장</p>
                 <p><strong>2단계</strong> (07:05): DALL-E 이미지 생성 → WP 이미지 업로드 → <span className="text-amber-600 font-medium">검수 후 수동 발행</span></p>
-                <p>K-콘텐츠 50%+: <strong>K-연예/한류</strong>(2), <strong>K-스포츠</strong>(1) + 일반(2)</p>
+                <p>K-콘텐츠 50%: <strong>K-연예/한류</strong>(3), <strong>K-스포츠</strong>(2) + 일반(5) = 10개</p>
                 <p className="text-red-500">정치/선거/탄핵 키워드는 자동 제외됩니다.</p>
               </div>
               <button
@@ -357,7 +357,7 @@ export default function TrendPage() {
                 disabled={autoPublishing}
                 className="w-full py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 disabled:bg-purple-300 flex items-center justify-center gap-2"
               >
-                {autoPublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Draft 저장 중... (1~2분)</> : "🚀 1단계: Draft 저장 (글만)"}
+                {autoPublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Draft 저장 중... (2~4분, 10개 병렬)</> : "🚀 1단계: Draft 저장 (글만)"}
               </button>
               <button
                 onClick={async () => {
