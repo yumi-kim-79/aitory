@@ -4,6 +4,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import { generateLongtailContent } from '@/lib/longtail-title';
 import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd } from '@/lib/seo-aeo';
 import { requestIndexing } from '@/lib/google-indexing';
+import { appendPhotoSuffix } from '@/lib/dalle-photo-prompt';
 
 export const maxDuration = 300;
 
@@ -378,12 +379,13 @@ async function generateTweetImage(keyword: string, category: string): Promise<Bu
       max_tokens: 200,
       messages: [{
         role: 'user',
-        content: `Create a DALL-E 3 image prompt in English for a Twitter post about "${keyword}" (category: ${category}).
-Requirements: square 1:1 composition, no human faces, no text/letters, vibrant and eye-catching, social media optimized, professional quality.
-Respond with only the English prompt, no other text.`,
+        content: `Create a photorealistic DALL-E 3 image prompt in English for a Twitter post about "${keyword}" (category: ${category}).
+Requirements: square 1:1 composition, real photograph style (NOT illustration/cartoon), visualize the topic concretely.
+Respond with ONLY the English prompt, no other text. Keep it under 150 chars.`,
       }],
     });
-    const dallePrompt = promptRes.content[0].type === 'text' ? promptRes.content[0].text.trim() : keyword;
+    const basePrompt = promptRes.content[0].type === 'text' ? promptRes.content[0].text.trim() : keyword;
+    const dallePrompt = appendPhotoSuffix(basePrompt, category);
 
     const { OpenAI } = await import('openai');
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });

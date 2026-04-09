@@ -1,30 +1,34 @@
 export const maxDuration = 60;
 
 import Anthropic from "@anthropic-ai/sdk";
+import { appendPhotoSuffix } from "@/lib/dalle-photo-prompt";
 
 const claude = new Anthropic();
 
-async function keywordToPrompt(keyword: string): Promise<string> {
+async function keywordToPrompt(keyword: string, category: string): Promise<string> {
   try {
     const msg = await claude.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 100,
+      max_tokens: 150,
       temperature: 0,
-      messages: [{ role: "user", content: `"${keyword}" 키워드와 관련된 DALL-E 3 이미지 생성 프롬프트를 영어로 작성해주세요. 사실적이고 뉴스 기사 대표이미지에 적합한 스타일. 사람 얼굴은 포함하지 마세요. 프롬프트만 출력, 설명 없이.` }],
+      messages: [{ role: "user", content: `Create a photorealistic DALL-E 3 image prompt in English for "${keyword}". Real photograph style (NOT illustration/cartoon), news article header. Respond with ONLY the prompt, under 150 chars.` }],
     });
-    return msg.content[0].type === "text" ? msg.content[0].text.trim() : keyword;
+    const base = msg.content[0].type === "text" ? msg.content[0].text.trim() : keyword;
+    return appendPhotoSuffix(base, category);
   } catch {
-    return `Professional news article header image about ${keyword}, modern, no faces, editorial style`;
+    return appendPhotoSuffix(`News article header about ${keyword}`, category);
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const { keyword } = (await request.json()) as { keyword: string };
+    const body = (await request.json()) as { keyword: string; category?: string };
+    const { keyword } = body;
+    const category = body.category || '사회/생활';
     if (!keyword?.trim()) return Response.json({ error: "키워드 필요" }, { status: 400 });
 
-    const prompt = await keywordToPrompt(keyword);
-    console.log("[dalle] 프롬프트:", prompt.slice(0, 100));
+    const prompt = await keywordToPrompt(keyword, category);
+    console.log("[dalle] 프롬프트:", prompt.slice(0, 200));
 
     const openaiKey = process.env.OPENAI_API_KEY;
     if (!openaiKey) return Response.json({ error: "OpenAI API 키 미설정" }, { status: 500 });

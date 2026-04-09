@@ -39,15 +39,9 @@ async function fetchPostInfo(postId: number): Promise<{ title: string; contentPr
 }
 
 // ────────────────────────────────────────────
-// DALL-E 3 이미지 생성 (본문 내용 기반)
+// DALL-E 3 이미지 생성 (본문 내용 기반, 실제 사진 스타일)
 // ────────────────────────────────────────────
-const CATEGORY_STYLES: Record<string, string> = {
-  'K-연예/한류': 'K-pop concert stage, dramatic LED lighting, colorful backdrop, cinematic Korean entertainment aesthetic',
-  'K-스포츠': 'Dynamic sports action scene, Korean flag elements, stadium atmosphere, dramatic lighting, motion blur',
-  '경제/비즈니스': 'Modern financial district skyline, stock market data visualization, blue and gold corporate aesthetic',
-  '사회/생활': 'Clean modern lifestyle photography, warm natural lighting, Korean urban environment',
-  'IT/과학': 'Futuristic technology visualization, glowing circuit patterns, blue purple gradient, AI neural network',
-};
+import { PHOTO_CATEGORY_STYLES, appendPhotoSuffix } from '@/lib/dalle-photo-prompt';
 
 async function generateImage(
   keyword: string,
@@ -56,31 +50,28 @@ async function generateImage(
   contentPreview: string,
 ): Promise<string | null> {
   try {
-    const styleHint = CATEGORY_STYLES[category] || 'clean and modern professional blog thumbnail';
+    const styleHint = PHOTO_CATEGORY_STYLES[category] || 'editorial photography, modern Korean setting';
 
     const promptRes = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 300,
       messages: [{
         role: 'user',
-        content: `다음 블로그 글의 내용을 완벽하게 표현하는 DALL-E 3 이미지 프롬프트를 영어로 작성해줘.
+        content: `Create a photorealistic DALL-E 3 image prompt in English for a blog about "${title}" (category: ${category}).
+Blog content excerpt: ${contentPreview}
 
-블로그 제목: ${title}
-카테고리: ${category}
-본문 요약: ${contentPreview}
+Requirements:
+- Real photograph style, NOT illustration or cartoon
+- Visualize the core topic concretely
+- Style reference: ${styleHint}
 
-요구사항:
-- 블로그 핵심 주제를 시각적으로 표현
-- 사람 얼굴 없음, 텍스트/글자 없음
-- 16:9 비율 블로그 썸네일
-- 4K 퀄리티, 선명한 포커스, 매거진 커버 수준
-- 스타일 참고: ${styleHint}
-
-영어 프롬프트만 반환, 다른 텍스트 없이.`,
+Respond with ONLY the English prompt, no other text. Keep it under 200 chars.`,
       }],
     });
-    const dallePrompt = promptRes.content[0].type === 'text' ? promptRes.content[0].text.trim() : keyword;
-    console.log(`[image] DALL-E 프롬프트: ${dallePrompt.slice(0, 150)}`);
+    const basePrompt = promptRes.content[0].type === 'text' ? promptRes.content[0].text.trim() : keyword;
+    // 사진 품질 suffix 강제 추가
+    const dallePrompt = appendPhotoSuffix(basePrompt, category);
+    console.log(`[image] DALL-E 프롬프트: ${dallePrompt.slice(0, 200)}`);
 
     const { OpenAI } = await import('openai');
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
