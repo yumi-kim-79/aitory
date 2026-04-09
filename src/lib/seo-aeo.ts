@@ -2,9 +2,13 @@
 // SEO/AEO 유틸리티
 // ────────────────────────────────────────────
 
+/** SEO+AEO 적용 여부를 표시하는 마커 (WP가 절대 strip 하지 않는 HTML 주석) */
+export const SEO_AEO_MARKER = '<!-- kbuzz-seo-aeo-applied -->';
+
 /** AI 요약 박스 (AEO - Answer Engine Optimization) */
 export function buildSummaryBox(summary: string): string {
-  return `<div class="kbuzz-summary" style="background:#f0f9ff;border-left:4px solid #3b82f6;padding:16px 20px;margin:20px 0;border-radius:0 8px 8px 0;">
+  return `${SEO_AEO_MARKER}
+<div class="kbuzz-summary" style="background:#f0f9ff;border-left:4px solid #3b82f6;padding:16px 20px;margin:20px 0;border-radius:0 8px 8px 0;">
 <strong style="display:block;margin-bottom:8px;color:#1e40af;">📌 핵심 요약</strong>
 <p style="margin:0;color:#334155;line-height:1.7;">${summary}</p>
 </div>`;

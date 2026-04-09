@@ -109,9 +109,11 @@ async function getUpdatedIds(): Promise<Set<number>> {
 
 // ────────────────────────────────────────────
 // SEO+AEO 마커 감지 (이미 업데이트된 본문)
+// rendered/raw 양쪽 + HTML 주석 마커 모두 확인
 // ────────────────────────────────────────────
-function hasSeoMarkers(html: string): boolean {
-  return /kbuzz-summary|kbuzz-faq/.test(html);
+function hasSeoMarkers(post: WpPost): boolean {
+  const haystack = (post.content?.raw || '') + '\n' + (post.content?.rendered || '');
+  return /kbuzz-seo-aeo-applied|kbuzz-summary|kbuzz-faq|faq-section/.test(haystack);
 }
 
 // ────────────────────────────────────────────
@@ -121,8 +123,7 @@ async function getPendingPosts(): Promise<WpPost[]> {
   const [posts, updatedIds] = await Promise.all([fetchRecentWpPosts(), getUpdatedIds()]);
   return posts.filter((p) => {
     if (updatedIds.has(p.id)) return false;
-    const html = p.content?.rendered || '';
-    if (hasSeoMarkers(html)) return false;
+    if (hasSeoMarkers(p)) return false;
     return true;
   });
 }
@@ -148,7 +149,7 @@ export async function GET(request: Request) {
     const [posts, updatedIds] = await Promise.all([fetchRecentWpPosts(), getUpdatedIds()]);
     const pending = posts.filter((p) => {
       if (updatedIds.has(p.id)) return false;
-      return !hasSeoMarkers(p.content?.rendered || '');
+      return !hasSeoMarkers(p);
     });
     return NextResponse.json({
       success: true,
@@ -244,18 +245,25 @@ export async function POST(request: Request) {
           throw new Error(`WP 업데이트 실패 (${updateRes.status}): ${text.slice(0, 150)}`);
         }
 
-        // 4. Firestore 기록
-        await adminDb.collection('aitory_seo_updated').add({
-          postId: post.id,
-          url: post.link,
-          title,
-          updatedAt: new Date(),
-          faqCount: longtail.faqs.length,
-        });
-
+        // WP 업데이트 성공 → 즉시 succeeded 카운트
         succeeded++;
         results.push({ postId: post.id, title, success: true });
-        console.log(`[seo-update] 성공: ${post.id} ${title}`);
+        console.log(`[seo-update] WP 성공: ${post.id} ${title}`);
+
+        // 4. Firestore 기록 (실패해도 WP 성공은 유지 - 마커가 백업)
+        try {
+          await adminDb.collection('aitory_seo_updated').add({
+            postId: post.id,
+            url: post.link,
+            title,
+            updatedAt: new Date(),
+            faqCount: longtail.faqs.length,
+          });
+          console.log(`[seo-update] Firestore 기록 성공: ${post.id}`);
+        } catch (fsErr) {
+          const fsMsg = fsErr instanceof Error ? fsErr.message : String(fsErr);
+          console.error(`[seo-update] Firestore 기록 실패 (계속 진행): ${post.id}`, fsMsg);
+        }
       } catch (err) {
         failed++;
         const msg = err instanceof Error ? err.message : String(err);
