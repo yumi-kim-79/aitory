@@ -60,6 +60,8 @@ export default function TrendPage() {
   const [v3Running, setV3Running] = useState(false);
   const [bulkIndexing, setBulkIndexing] = useState(false);
   const [indexPending, setIndexPending] = useState<number | null>(null);
+  const [seoUpdating, setSeoUpdating] = useState(false);
+  const [seoPending, setSeoPending] = useState<number | null>(null);
   const [autoResults, setAutoResults] = useState<{ keyword: string; ok?: boolean; success?: boolean; postUrl?: string; wpUrl?: string; tweetUrl?: string; tweetError?: string; indexed?: boolean; title?: string; error?: string }[]>([]);
 
   const [copied, setCopied] = useState("");
@@ -73,7 +75,7 @@ export default function TrendPage() {
   useEffect(() => { fetchTrends(); }, [fetchTrends]);
   useEffect(() => { const t = setInterval(fetchTrends, 30 * 60 * 1000); return () => clearInterval(t); }, [fetchTrends]);
 
-  // 자동발행 탭 진입 시 색인 대기 글 개수 조회
+  // 자동발행 탭 진입 시 색인/SEO 업데이트 대기 글 개수 조회
   useEffect(() => {
     if (mainTab !== "auto" || !isAdmin) return;
     let cancelled = false;
@@ -81,10 +83,19 @@ export default function TrendPage() {
       try {
         const token = await getIdToken();
         if (!token) return;
-        const res = await fetch("/api/indexing/bulk", { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!cancelled) setIndexPending(typeof data.pending === "number" ? data.pending : null);
+        const headers = { Authorization: `Bearer ${token}` };
+        const [idxRes, seoRes] = await Promise.all([
+          fetch("/api/indexing/bulk", { headers }),
+          fetch("/api/auto-publish/seo-update", { headers }),
+        ]);
+        if (idxRes.ok) {
+          const data = await idxRes.json();
+          if (!cancelled) setIndexPending(typeof data.pending === "number" ? data.pending : null);
+        }
+        if (seoRes.ok) {
+          const data = await seoRes.json();
+          if (!cancelled) setSeoPending(typeof data.pending === "number" ? data.pending : null);
+        }
       } catch {}
     })();
     return () => { cancelled = true; };
@@ -499,6 +510,37 @@ export default function TrendPage() {
                   : indexPending === null ? "📡 기존 글 전체 색인 요청 (조회 중...)"
                   : indexPending === 0 ? "✅ 모든 글 색인 완료"
                   : `📡 기존 글 전체 색인 요청 (${indexPending}개 대기 중)`}
+              </button>
+              <button
+                onClick={async () => {
+                  setSeoUpdating(true); setAutoResults([]);
+                  try {
+                    const token = await getIdToken();
+                    if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); return; }
+                    const res = await fetch("/api/auto-publish/seo-update", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(290000) });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]);
+                    } else {
+                      setAutoResults([{
+                        keyword: `✨ SEO+AEO 업데이트 완료`,
+                        success: true,
+                        error: `총 ${data.total ?? 0}개 중 성공 ${data.succeeded ?? 0}개 / 실패 ${data.failed ?? 0}개`,
+                      }]);
+                      setSeoPending(0);
+                    }
+                  } catch (err) {
+                    setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
+                  } finally { setSeoUpdating(false); }
+                }}
+                disabled={seoUpdating || seoPending === 0}
+                className="w-full py-3 bg-violet-600 text-white rounded-xl font-medium hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-3"
+              >
+                {seoUpdating
+                  ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />업데이트 중... ({seoPending ?? 0}개)</>
+                  : seoPending === null ? "✨ 기존 글 SEO+AEO 업데이트 (조회 중...)"
+                  : seoPending === 0 ? "✅ 모든 글 SEO+AEO 완료"
+                  : `✨ 기존 글 SEO+AEO 업데이트 (${seoPending}개 대기 중)`}
               </button>
             </div>
 
