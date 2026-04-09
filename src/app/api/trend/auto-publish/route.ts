@@ -459,6 +459,58 @@ async function postToX(params: {
 }
 
 // ────────────────────────────────────────────
+// 롱테일 키워드 생성 (Claude)
+// ────────────────────────────────────────────
+async function generateLongtailKeyword(mainKeyword: string, category: string): Promise<string | null> {
+  try {
+    const prompt = `메인 키워드 "${mainKeyword}" (카테고리: ${category})를 기반으로 SEO 롱테일 키워드 1개를 생성해줘.
+요건:
+- 메인 키워드와 다른 각도(전망, 분석, 비교, 5가지 이유 등)
+- 검색량이 있을만한 구체적인 표현
+- 15자 이내
+
+응답: 키워드 한 개만, 다른 텍스트 없이.`;
+    const res = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 50,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const text = res.content[0].type === 'text' ? res.content[0].text.trim() : '';
+    return text || null;
+  } catch (e) {
+    console.error('[longtail] 생성 실패:', e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+// ────────────────────────────────────────────
+// Google Indexing API (스텁 - GOOGLE_INDEXING_API_KEY 설정 시 동작)
+// ────────────────────────────────────────────
+async function requestGoogleIndexing(url: string): Promise<void> {
+  const apiKey = process.env.GOOGLE_INDEXING_API_KEY;
+  if (!apiKey) {
+    console.log('[google-indexing] GOOGLE_INDEXING_API_KEY 미설정 → 스킵:', url);
+    return;
+  }
+  try {
+    // TODO: 실제 운영 시 service account JSON으로 OAuth 2.0 토큰 발급 후 호출
+    // https://indexing.googleapis.com/v3/urlNotifications:publish
+    const res = await fetch('https://indexing.googleapis.com/v3/urlNotifications:publish', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ url, type: 'URL_UPDATED' }),
+      signal: AbortSignal.timeout(10000),
+    });
+    console.log(`[google-indexing] ${url} → status ${res.status}`);
+  } catch (e) {
+    console.error('[google-indexing] 실패:', e instanceof Error ? e.message : e);
+  }
+}
+
+// ────────────────────────────────────────────
 // WP draft 저장
 // ────────────────────────────────────────────
 async function postDraftToWP(params: {
@@ -554,7 +606,19 @@ export async function GET(req: NextRequest) {
     const generalKeywords = await selectGeneralKeywords(trendResult, batchKeywords);
     console.log(`[auto-publish] 일반: ${generalKeywords.length}개`);
 
-    const allKeywords = [...kEntertainment, ...kSports, ...generalKeywords];
+    // K-연예/한류 첫 키워드 기반 롱테일 1개 추가 (총 11개)
+    const longtailKeywords: SelectedKeyword[] = [];
+    if (kEntertainment.length > 0) {
+      const main = kEntertainment[0];
+      const longtail = await generateLongtailKeyword(main.keyword, main.category);
+      if (longtail && !batchKeywords.has(longtail) && !isDuplicateSync(longtail)) {
+        batchKeywords.add(longtail);
+        longtailKeywords.push({ keyword: longtail, category: main.category, news: '' });
+        console.log(`[auto-publish] 롱테일 추가: ${longtail}`);
+      }
+    }
+
+    const allKeywords = [...kEntertainment, ...kSports, ...generalKeywords, ...longtailKeywords];
     console.log('[auto-publish] 전체 선정:', allKeywords.map((k) => `${k.category}: ${k.keyword}`));
 
     if (allKeywords.length === 0) {
@@ -587,6 +651,9 @@ export async function GET(req: NextRequest) {
               imageStatus: 'pending', status: 'draft', publishedAt: new Date(),
               tweetUrl: null, tweetError: null,
             });
+
+            // Google Indexing API 색인 요청 (실패해도 진행)
+            await requestGoogleIndexing(wpUrl);
 
             return { keyword, category, postId, wpUrl };
           })(),

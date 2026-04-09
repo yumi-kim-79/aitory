@@ -56,6 +56,7 @@ export default function TrendPage() {
   const [autoCooldown, setAutoCooldown] = useState(false);
   const [autoImagePublishing, setAutoImagePublishing] = useState(false);
   const [autoTweeting, setAutoTweeting] = useState(false);
+  const [republishing, setRepublishing] = useState(false);
   const [autoResults, setAutoResults] = useState<{ keyword: string; ok?: boolean; success?: boolean; postUrl?: string; wpUrl?: string; tweetUrl?: string; tweetError?: string; error?: string }[]>([]);
 
   const [copied, setCopied] = useState("");
@@ -319,7 +320,8 @@ export default function TrendPage() {
                 <p>매일 <strong>07:00</strong> (KST) 자동 발행</p>
                 <p><strong>1단계</strong> (07:00): 키워드 수집 → AI 블로그 글 → WP <span className="text-amber-600 font-medium">draft</span> 저장</p>
                 <p><strong>2단계</strong> (07:05): DALL-E 이미지 생성 → WP 이미지 업로드 → <span className="text-amber-600 font-medium">검수 후 수동 발행</span></p>
-                <p><strong>3단계</strong> (수동): X 트윗 발행 (DALL-E 이미지 첨부)</p>
+                <p><strong>3단계</strong> (수동): X 트윗 발행 (텍스트만)</p>
+                <p><strong>4단계</strong> (수동): 인기글 재발행 - 최근 30일 글 5개 다른 각도로 재작성</p>
                 <p>K-콘텐츠 50%: <strong>K-연예/한류</strong>(3), <strong>K-스포츠</strong>(2) + 일반(5) = 10개</p>
                 <p className="text-red-500">정치/선거/탄핵 키워드는 자동 제외됩니다.</p>
               </div>
@@ -400,6 +402,26 @@ export default function TrendPage() {
                 className="w-full py-3 bg-sky-500 text-white rounded-xl font-medium hover:bg-sky-600 disabled:bg-sky-300 flex items-center justify-center gap-2 mt-3"
               >
                 {autoTweeting ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />트윗 발행 중... (30초 이내)</> : "🐦 3단계: X 트윗 발행 (텍스트만)"}
+              </button>
+              <button
+                onClick={async () => {
+                  setRepublishing(true); setAutoResults([]);
+                  try {
+                    const token = await getIdToken();
+                    if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); return; }
+                    const res = await fetch("/api/trend/republish-popular", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(290000) });
+                    const data = await res.json();
+                    if (!res.ok) { setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]); }
+                    else if (data.results?.length) { setAutoResults(data.results.map((r: { originalKeyword: string; newTitle?: string; newWpUrl?: string; success: boolean; error?: string }) => ({ keyword: `${r.originalKeyword}${r.newTitle ? ` → ${r.newTitle}` : ''}`, success: r.success, ok: r.success, wpUrl: r.newWpUrl, error: r.error }))); }
+                    else { setAutoResults([{ keyword: "완료", success: true, error: data.message || `재발행 ${data.total || 0}개` }]); }
+                  } catch (err) {
+                    setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
+                  } finally { setRepublishing(false); }
+                }}
+                disabled={republishing}
+                className="w-full py-3 bg-indigo-500 text-white rounded-xl font-medium hover:bg-indigo-600 disabled:bg-indigo-300 flex items-center justify-center gap-2 mt-3"
+              >
+                {republishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />재발행 중... (3~5분 소요)</> : "🔄 4단계: 인기글 재발행 (5개)"}
               </button>
             </div>
 
