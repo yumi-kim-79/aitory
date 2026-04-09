@@ -54,6 +54,32 @@ AI가 당신의 업무를 대신하는 플랫폼
 - 코드 수정 → README 변경이력 업데이트 → 커밋/배포 순서 반드시 준수
 - 배포 명령어는 반드시 `npx vercel --prod` 사용 (git push 자동배포 불안정)
 
+### Kbuzz 자동발행 고도화 로드맵
+- ✅ 1단계: 글 품질 개선 (뉴스 10개×500자, 2000자+, 소제목 4개+)
+- ✅ 2단계: 연관 키워드 확장 (롱테일 1개 추가, 총 11개), 인기글 재발행
+- 🔲 3단계 (진행 예정):
+  - Google Search Console 색인 자동화 (Google Indexing API + 서비스 계정)
+  - 네이버 서치어드바이저 등록 (searchadvisor.naver.com)
+  - SEO 최적화 - 제목 롱테일 키워드 타겟팅
+  - AEO(Answer Engine Optimization) - AI 검색 최적화
+  - 글 제목 최적화 자동화
+  - Facebook/Instagram SNS 연동 (페이지 생성 제한 해제 후)
+  - X(트위터) 연동 (크레딧 충전 후)
+- 🔲 4단계 (장기):
+  - 댓글 자동 관리
+  - 뉴스레터 자동 발송
+  - 수익 다각화 (애드센스 + 제휴마케팅)
+
+### Kbuzz WordPress 자동발행 시스템 구조
+- Cron: 매일 KST 07:00 자동 실행 (Vercel Hobby ±1시간 오차)
+- 1단계 (auto-publish): K-연예/한류 3개 + K-스포츠 2개 + 경제/비즈니스 2개 + 사회/생활 2개 + IT/과학 1개 + 롱테일 1개 = 총 11개 draft 저장
+- 2단계 (auto-publish-image): DALL-E 이미지 생성 → WP 대표이미지 설정 (수동 실행)
+- 3단계: X 트윗 발행 (크레딧 충전 후)
+- 4단계 (republish-popular): 인기글 다른 각도로 재발행
+- 중복방지: Firestore aitory_published_keywords 7일 중복 체크
+- WP 환경변수: WP_SITE_URL, WP_USERNAME, WP_APP_PASSWORD
+- SNS 환경변수: X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET
+
 ### 개발 원칙 및 주의사항
 - Firestore 컬렉션은 반드시 aitory_ 접두사 사용
 - useAuth import 경로: @/contexts/AuthContext (hooks/useAuth 아님)
@@ -278,6 +304,15 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-08 | cron 스케줄 변경 - 하루 1회 KST 07:00(UTC 22:00) 자동발행으로 단순화 |
 | 2026-04-08 | 자동발행 10개로 증가(K-연예3+K-스포츠2+경제2+사회2+IT1), 병렬처리 최적화, 개별 60초 타임아웃 |
 | 2026-04-08 | vercel.json 잔여 cron 제거 확인 - KST 07:00/07:05 2개만 유지, 재배포로 동기화 |
+| 2026-04-08 | 1단계 고도화 - 뉴스 10개×500자 수집, 블로그 2000자+, 소제목 4개+, max_tokens 2500 |
+| 2026-04-08 | X(트위터) 자동 포스팅 연동 - twitter-api-v2, 3단계 버튼 분리, 텍스트 트윗 발행 |
+| 2026-04-08 | X API 401 수정 시도 - OAuth 1.0a 인증, 환경변수 진단 로깅, readWrite 명시 |
+| 2026-04-08 | X API 크레딧 부족으로 트윗 보류 - pay-per-use 플랜 크레딧 $0, 추후 연동 예정 |
+| 2026-04-08 | 2단계 고도화 - 연관 키워드 확장(롱테일 1개 추가, 총 11개), 인기글 재발행 API, Google Discover 최적화 준비 |
+| 2026-04-08 | 재발행 글 개선 - 같은 카테고리 내부 링크 삽입, 원본 이미지 재활용, DALL-E 비용 절약 |
+| 2026-04-09 | 3단계 고도화: Google Indexing API(JWT), SEO/AEO(요약박스,FAQ,JSON-LD), 롱테일 제목3안, v3 파이프라인 |
+| 2026-04-09 | Revive Social 플러그인 설치 - Facebook 페이지 생성 제한으로 연동 보류 |
+| 2026-04-09 | 네이버 서치어드바이저 등록 예정 - searchadvisor.naver.com |
 | 2026-04-08 | 1단계 고도화 - 뉴스 10개×1000자 수집, 블로그 2000자+, 소제목 4개+, max_tokens 3500 |
 | 2026-04-08 | 1단계 X 자동 트윗 추가 - DALL-E 1024 이미지 첨부, 280자 자동 truncate, 트윗 실패해도 진행 |
 | 2026-04-08 | 타임아웃 수정 - 뉴스 1000자→300자, max_tokens 3500→2500, 타임아웃 90초, 마크다운 변환 |
