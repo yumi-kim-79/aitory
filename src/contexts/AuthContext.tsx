@@ -37,7 +37,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
-  getIdToken: () => Promise<string | null>;
+  getIdToken: (forceRefresh?: boolean) => Promise<string | null>;
   refreshUser: () => void;
 }
 
@@ -157,8 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setFirebaseUser(null);
   }, []);
 
-  const getIdToken = useCallback(async () => {
-    return firebaseUser ? firebaseUser.getIdToken() : null;
+  const getIdToken = useCallback(async (forceRefresh?: boolean) => {
+    return firebaseUser ? firebaseUser.getIdToken(forceRefresh) : null;
   }, [firebaseUser]);
 
   const triggerRefresh = useCallback(() => {

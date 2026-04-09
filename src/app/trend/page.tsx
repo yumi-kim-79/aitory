@@ -492,16 +492,17 @@ export default function TrendPage() {
                     setBulkIndexing(true); setAutoResults([]);
                     indexStopRef.current = false;
                     setIndexProcessed(0);
+                    // 분모는 최초 pending 개수로 고정
                     const initialTotal = indexPending ?? 0;
                     setIndexTotal(initialTotal);
                     let totalSucceeded = 0;
                     let totalFailed = 0;
-                    let totalProcessed = 0;
                     try {
-                      const token = await getIdToken();
-                      if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); setBulkIndexing(false); return; }
                       while (true) {
                         if (indexStopRef.current) { console.log("[bulk-index] 사용자 중단"); break; }
+                        // 매 배치마다 토큰 강제 갱신
+                        const token = await getIdToken(true);
+                        if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); break; }
                         const res = await fetch("/api/indexing/bulk", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(120000) });
                         const data = await res.json();
                         if (!res.ok) {
@@ -511,17 +512,17 @@ export default function TrendPage() {
                         const batchProcessed = data.total ?? 0;
                         totalSucceeded += data.succeeded ?? 0;
                         totalFailed += data.failed ?? 0;
-                        totalProcessed += batchProcessed;
-                        setIndexProcessed(totalProcessed);
+                        // 분자는 누적 처리 완료 개수 (성공+실패), 분모 초과 방지
+                        setIndexProcessed(Math.min(totalSucceeded + totalFailed, initialTotal));
                         const remaining = data.totalRemaining ?? 0;
                         if (batchProcessed === 0 || remaining === 0) break;
                       }
                       setAutoResults([{
                         keyword: indexStopRef.current ? "📡 색인 요청 중단됨" : "📡 색인 요청 완료",
                         success: !indexStopRef.current,
-                        error: `처리 ${totalProcessed}개 / 성공 ${totalSucceeded} / 실패 ${totalFailed}`,
+                        error: `처리 ${totalSucceeded + totalFailed}개 / 성공 ${totalSucceeded} / 실패 ${totalFailed}`,
                       }]);
-                      setIndexPending(Math.max(0, initialTotal - totalProcessed));
+                      setIndexPending(Math.max(0, initialTotal - (totalSucceeded + totalFailed)));
                     } catch (err) {
                       setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
                     } finally { setBulkIndexing(false); }
@@ -550,16 +551,17 @@ export default function TrendPage() {
                     setSeoUpdating(true); setAutoResults([]);
                     seoStopRef.current = false;
                     setSeoProcessed(0);
+                    // 분모는 최초 pending 개수로 고정 (배치 진행 중 변하지 않음)
                     const initialTotal = seoPending ?? 0;
                     setSeoTotal(initialTotal);
                     let totalSucceeded = 0;
                     let totalFailed = 0;
-                    let totalProcessed = 0;
                     try {
-                      const token = await getIdToken();
-                      if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); setSeoUpdating(false); return; }
                       while (true) {
                         if (seoStopRef.current) { console.log("[seo-update] 사용자 중단"); break; }
+                        // 매 배치마다 토큰 강제 갱신 (1시간 만료 방지)
+                        const token = await getIdToken(true);
+                        if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); break; }
                         const res = await fetch("/api/auto-publish/seo-update", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(290000) });
                         const data = await res.json();
                         if (!res.ok) {
@@ -569,17 +571,17 @@ export default function TrendPage() {
                         const batchProcessed = data.total ?? 0;
                         totalSucceeded += data.succeeded ?? 0;
                         totalFailed += data.failed ?? 0;
-                        totalProcessed += batchProcessed;
-                        setSeoProcessed(totalProcessed);
+                        // 분자는 누적 성공+실패 합계로 (실제 처리 완료 개수)
+                        setSeoProcessed(Math.min(totalSucceeded + totalFailed, initialTotal));
                         const remaining = data.totalRemaining ?? 0;
                         if (batchProcessed === 0 || remaining === 0) break;
                       }
                       setAutoResults([{
                         keyword: seoStopRef.current ? "✨ SEO+AEO 업데이트 중단됨" : "✨ SEO+AEO 업데이트 완료",
                         success: !seoStopRef.current,
-                        error: `처리 ${totalProcessed}개 / 성공 ${totalSucceeded} / 실패 ${totalFailed}`,
+                        error: `처리 ${totalSucceeded + totalFailed}개 / 성공 ${totalSucceeded} / 실패 ${totalFailed}`,
                       }]);
-                      setSeoPending(Math.max(0, initialTotal - totalProcessed));
+                      setSeoPending(Math.max(0, initialTotal - (totalSucceeded + totalFailed)));
                     } catch (err) {
                       setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
                     } finally { setSeoUpdating(false); }
