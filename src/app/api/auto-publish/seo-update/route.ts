@@ -172,15 +172,21 @@ export async function POST(request: Request) {
   const wp = wpAuth();
   if (!wp) return NextResponse.json({ error: 'WP 환경변수 부족' }, { status: 500 });
 
-  try {
-    const pending = await getPendingPosts();
-    console.log(`[seo-update] 대상 ${pending.length}개`);
+  const BATCH_SIZE = 5;
 
-    if (pending.length === 0) {
-      return NextResponse.json({ success: true, message: '업데이트 대기 글 없음', total: 0, succeeded: 0, failed: 0 });
+  try {
+    const allPending = await getPendingPosts();
+    console.log(`[seo-update] 전체 대기 ${allPending.length}개`);
+
+    if (allPending.length === 0) {
+      return NextResponse.json({ success: true, message: '업데이트 대기 글 없음', total: 0, succeeded: 0, failed: 0, totalRemaining: 0 });
     }
 
-    // 카테고리 ID 일괄 매핑
+    // 이번 배치만 처리
+    const pending = allPending.slice(0, BATCH_SIZE);
+    console.log(`[seo-update] 배치 처리 ${pending.length}/${allPending.length}`);
+
+    // 카테고리 ID 매핑 (배치 글만)
     const allCatIds = Array.from(new Set(pending.flatMap((p) => p.categories || [])));
     const catMap = await fetchCategoryNames(allCatIds);
 
@@ -257,8 +263,8 @@ export async function POST(request: Request) {
         console.error(`[seo-update] 실패: ${post.id}`, msg);
       }
 
-      // API 부하 방지 2초
-      await new Promise((r) => setTimeout(r, 2000));
+      // API 부하 방지 1초
+      await new Promise((r) => setTimeout(r, 1000));
     }
 
     return NextResponse.json({
@@ -266,6 +272,7 @@ export async function POST(request: Request) {
       total: pending.length,
       succeeded,
       failed,
+      totalRemaining: allPending.length - pending.length,
       results,
     });
   } catch (err) {

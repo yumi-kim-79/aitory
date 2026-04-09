@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -60,8 +60,14 @@ export default function TrendPage() {
   const [v3Running, setV3Running] = useState(false);
   const [bulkIndexing, setBulkIndexing] = useState(false);
   const [indexPending, setIndexPending] = useState<number | null>(null);
+  const [indexProcessed, setIndexProcessed] = useState(0);
+  const [indexTotal, setIndexTotal] = useState(0);
+  const indexStopRef = useRef(false);
   const [seoUpdating, setSeoUpdating] = useState(false);
   const [seoPending, setSeoPending] = useState<number | null>(null);
+  const [seoProcessed, setSeoProcessed] = useState(0);
+  const [seoTotal, setSeoTotal] = useState(0);
+  const seoStopRef = useRef(false);
   const [autoResults, setAutoResults] = useState<{ keyword: string; ok?: boolean; success?: boolean; postUrl?: string; wpUrl?: string; tweetUrl?: string; tweetError?: string; indexed?: boolean; title?: string; error?: string }[]>([]);
 
   const [copied, setCopied] = useState("");
@@ -480,68 +486,122 @@ export default function TrendPage() {
               >
                 {v3Running ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />V3 실행 중... (3~5분 소요)</> : "🚀 V3: SEO+롱테일+색인 자동화"}
               </button>
-              <button
-                onClick={async () => {
-                  setBulkIndexing(true); setAutoResults([]);
-                  try {
-                    const token = await getIdToken();
-                    if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); return; }
-                    const res = await fetch("/api/indexing/bulk", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(290000) });
-                    const data = await res.json();
-                    if (!res.ok) {
-                      setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]);
-                    } else {
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={async () => {
+                    setBulkIndexing(true); setAutoResults([]);
+                    indexStopRef.current = false;
+                    setIndexProcessed(0);
+                    const initialTotal = indexPending ?? 0;
+                    setIndexTotal(initialTotal);
+                    let totalSucceeded = 0;
+                    let totalFailed = 0;
+                    let totalProcessed = 0;
+                    try {
+                      const token = await getIdToken();
+                      if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); setBulkIndexing(false); return; }
+                      while (true) {
+                        if (indexStopRef.current) { console.log("[bulk-index] 사용자 중단"); break; }
+                        const res = await fetch("/api/indexing/bulk", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(120000) });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]);
+                          break;
+                        }
+                        const batchProcessed = data.total ?? 0;
+                        totalSucceeded += data.succeeded ?? 0;
+                        totalFailed += data.failed ?? 0;
+                        totalProcessed += batchProcessed;
+                        setIndexProcessed(totalProcessed);
+                        const remaining = data.totalRemaining ?? 0;
+                        if (batchProcessed === 0 || remaining === 0) break;
+                      }
                       setAutoResults([{
-                        keyword: `📡 색인 요청 완료`,
-                        success: true,
-                        error: `총 ${data.total ?? 0}개 중 성공 ${data.succeeded ?? 0}개 / 실패 ${data.failed ?? 0}개`,
+                        keyword: indexStopRef.current ? "📡 색인 요청 중단됨" : "📡 색인 요청 완료",
+                        success: !indexStopRef.current,
+                        error: `처리 ${totalProcessed}개 / 성공 ${totalSucceeded} / 실패 ${totalFailed}`,
                       }]);
-                      setIndexPending(0);
-                    }
-                  } catch (err) {
-                    setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
-                  } finally { setBulkIndexing(false); }
-                }}
-                disabled={bulkIndexing || indexPending === 0}
-                className="w-full py-3 bg-cyan-600 text-white rounded-xl font-medium hover:bg-cyan-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-3"
-              >
-                {bulkIndexing
-                  ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />색인 요청 중... ({indexPending ?? 0}개)</>
-                  : indexPending === null ? "📡 기존 글 전체 색인 요청 (조회 중...)"
-                  : indexPending === 0 ? "✅ 모든 글 색인 완료"
-                  : `📡 기존 글 전체 색인 요청 (${indexPending}개 대기 중)`}
-              </button>
-              <button
-                onClick={async () => {
-                  setSeoUpdating(true); setAutoResults([]);
-                  try {
-                    const token = await getIdToken();
-                    if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); return; }
-                    const res = await fetch("/api/auto-publish/seo-update", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(290000) });
-                    const data = await res.json();
-                    if (!res.ok) {
-                      setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]);
-                    } else {
+                      setIndexPending(Math.max(0, initialTotal - totalProcessed));
+                    } catch (err) {
+                      setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
+                    } finally { setBulkIndexing(false); }
+                  }}
+                  disabled={bulkIndexing || indexPending === 0}
+                  className="flex-1 py-3 bg-cyan-600 text-white rounded-xl font-medium hover:bg-cyan-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {bulkIndexing
+                    ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />색인 요청 중... ({indexProcessed}/{indexTotal})</>
+                    : indexPending === null ? "📡 기존 글 전체 색인 요청 (조회 중...)"
+                    : indexPending === 0 ? "✅ 모든 글 색인 완료"
+                    : `📡 기존 글 전체 색인 요청 (${indexPending}개 대기 중)`}
+                </button>
+                {bulkIndexing && (
+                  <button
+                    onClick={() => { indexStopRef.current = true; }}
+                    className="px-4 py-3 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 text-sm"
+                  >
+                    중단
+                  </button>
+                )}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={async () => {
+                    setSeoUpdating(true); setAutoResults([]);
+                    seoStopRef.current = false;
+                    setSeoProcessed(0);
+                    const initialTotal = seoPending ?? 0;
+                    setSeoTotal(initialTotal);
+                    let totalSucceeded = 0;
+                    let totalFailed = 0;
+                    let totalProcessed = 0;
+                    try {
+                      const token = await getIdToken();
+                      if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); setSeoUpdating(false); return; }
+                      while (true) {
+                        if (seoStopRef.current) { console.log("[seo-update] 사용자 중단"); break; }
+                        const res = await fetch("/api/auto-publish/seo-update", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(290000) });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]);
+                          break;
+                        }
+                        const batchProcessed = data.total ?? 0;
+                        totalSucceeded += data.succeeded ?? 0;
+                        totalFailed += data.failed ?? 0;
+                        totalProcessed += batchProcessed;
+                        setSeoProcessed(totalProcessed);
+                        const remaining = data.totalRemaining ?? 0;
+                        if (batchProcessed === 0 || remaining === 0) break;
+                      }
                       setAutoResults([{
-                        keyword: `✨ SEO+AEO 업데이트 완료`,
-                        success: true,
-                        error: `총 ${data.total ?? 0}개 중 성공 ${data.succeeded ?? 0}개 / 실패 ${data.failed ?? 0}개`,
+                        keyword: seoStopRef.current ? "✨ SEO+AEO 업데이트 중단됨" : "✨ SEO+AEO 업데이트 완료",
+                        success: !seoStopRef.current,
+                        error: `처리 ${totalProcessed}개 / 성공 ${totalSucceeded} / 실패 ${totalFailed}`,
                       }]);
-                      setSeoPending(0);
-                    }
-                  } catch (err) {
-                    setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
-                  } finally { setSeoUpdating(false); }
-                }}
-                disabled={seoUpdating || seoPending === 0}
-                className="w-full py-3 bg-violet-600 text-white rounded-xl font-medium hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-3"
-              >
-                {seoUpdating
-                  ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />업데이트 중... ({seoPending ?? 0}개)</>
-                  : seoPending === null ? "✨ 기존 글 SEO+AEO 업데이트 (조회 중...)"
-                  : seoPending === 0 ? "✅ 모든 글 SEO+AEO 완료"
-                  : `✨ 기존 글 SEO+AEO 업데이트 (${seoPending}개 대기 중)`}
-              </button>
+                      setSeoPending(Math.max(0, initialTotal - totalProcessed));
+                    } catch (err) {
+                      setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
+                    } finally { setSeoUpdating(false); }
+                  }}
+                  disabled={seoUpdating || seoPending === 0}
+                  className="flex-1 py-3 bg-violet-600 text-white rounded-xl font-medium hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {seoUpdating
+                    ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />업데이트 중... ({seoProcessed}/{seoTotal})</>
+                    : seoPending === null ? "✨ 기존 글 SEO+AEO 업데이트 (조회 중...)"
+                    : seoPending === 0 ? "✅ 모든 글 SEO+AEO 완료"
+                    : `✨ 기존 글 SEO+AEO 업데이트 (${seoPending}개 대기 중)`}
+                </button>
+                {seoUpdating && (
+                  <button
+                    onClick={() => { seoStopRef.current = true; }}
+                    className="px-4 py-3 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 text-sm"
+                  >
+                    중단
+                  </button>
+                )}
+              </div>
             </div>
 
             {autoResults.length > 0 && (

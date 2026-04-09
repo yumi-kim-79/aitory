@@ -96,15 +96,21 @@ export async function POST(request: Request) {
   const auth = await checkAdmin(request);
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
+  const BATCH_SIZE = 10;
+
   try {
     const [posts, indexedSet] = await Promise.all([fetchRecentWpPosts(), getIndexedUrls()]);
-    const pending = posts.filter((p) => !indexedSet.has(p.url));
+    const allPending = posts.filter((p) => !indexedSet.has(p.url));
 
-    console.log(`[bulk-index] 색인 대상 ${pending.length}개`);
+    console.log(`[bulk-index] 전체 대기 ${allPending.length}개`);
 
-    if (pending.length === 0) {
-      return NextResponse.json({ success: true, message: '색인 대기 글 없음', total: 0, succeeded: 0, failed: 0 });
+    if (allPending.length === 0) {
+      return NextResponse.json({ success: true, message: '색인 대기 글 없음', total: 0, succeeded: 0, failed: 0, totalRemaining: 0 });
     }
+
+    // 이번 배치만 처리
+    const pending = allPending.slice(0, BATCH_SIZE);
+    console.log(`[bulk-index] 배치 처리 ${pending.length}/${allPending.length}`);
 
     const results: { url: string; success: boolean; error?: string }[] = [];
     let succeeded = 0;
@@ -138,6 +144,7 @@ export async function POST(request: Request) {
       total: pending.length,
       succeeded,
       failed,
+      totalRemaining: allPending.length - pending.length,
       results,
     });
   } catch (err) {
