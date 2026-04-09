@@ -349,7 +349,7 @@ export default function TrendPage() {
               <h2 className="text-lg font-bold text-slate-900 mb-4">🤖 자동 발행 시스템</h2>
               <div className="space-y-3 text-sm text-slate-600 mb-6">
                 <p>매일 <strong>07:00</strong> (KST) 자동 발행</p>
-                <p><strong>1단계</strong> (07:00): 키워드 수집 → AI 블로그 글 → WP <span className="text-amber-600 font-medium">draft</span> 저장</p>
+                <p><strong>1단계</strong> (07:00): 롱테일 제목 + SEO+AEO + Google 색인 자동 적용 → WP <span className="text-amber-600 font-medium">draft</span> 저장</p>
                 <p><strong>2단계</strong> (07:05): DALL-E 이미지 생성 → WP 이미지 업로드 → <span className="text-amber-600 font-medium">검수 후 수동 발행</span></p>
                 <p><strong>3단계</strong> (수동): X 트윗 발행 (텍스트만)</p>
                 <p><strong>4단계</strong> (수동): 인기글 재발행 - 최근 30일 글 5개 다른 각도로 재작성</p>
@@ -393,7 +393,7 @@ export default function TrendPage() {
                 disabled={autoPublishing}
                 className="w-full py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 disabled:bg-purple-300 flex items-center justify-center gap-2"
               >
-                {autoPublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Draft 저장 중... (2~4분, 10개 병렬)</> : "🚀 1단계: Draft 저장 (글만)"}
+                {autoPublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Draft 저장 중... (2~4분, 10개 병렬)</> : "🚀 1단계: Draft 저장 (V3 자동화)"}
               </button>
               <button
                 onClick={async () => {

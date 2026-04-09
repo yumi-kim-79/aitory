@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb } from '@/lib/firebase-admin';
+import { generateLongtailContent } from '@/lib/longtail-title';
+import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd } from '@/lib/seo-aeo';
+import { requestIndexing } from '@/lib/google-indexing';
 
 export const maxDuration = 300;
 
@@ -48,6 +51,9 @@ interface PublishResult {
   wpUrl?: string;
   tweetUrl?: string;
   tweetError?: string;
+  seoApplied?: boolean;
+  indexed?: boolean;
+  title?: string;
   error?: string;
 }
 
@@ -484,33 +490,6 @@ async function generateLongtailKeyword(mainKeyword: string, category: string): P
 }
 
 // ────────────────────────────────────────────
-// Google Indexing API (스텁 - GOOGLE_INDEXING_API_KEY 설정 시 동작)
-// ────────────────────────────────────────────
-async function requestGoogleIndexing(url: string): Promise<void> {
-  const apiKey = process.env.GOOGLE_INDEXING_API_KEY;
-  if (!apiKey) {
-    console.log('[google-indexing] GOOGLE_INDEXING_API_KEY 미설정 → 스킵:', url);
-    return;
-  }
-  try {
-    // TODO: 실제 운영 시 service account JSON으로 OAuth 2.0 토큰 발급 후 호출
-    // https://indexing.googleapis.com/v3/urlNotifications:publish
-    const res = await fetch('https://indexing.googleapis.com/v3/urlNotifications:publish', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({ url, type: 'URL_UPDATED' }),
-      signal: AbortSignal.timeout(10000),
-    });
-    console.log(`[google-indexing] ${url} → status ${res.status}`);
-  } catch (e) {
-    console.error('[google-indexing] 실패:', e instanceof Error ? e.message : e);
-  }
-}
-
-// ────────────────────────────────────────────
 // WP draft 저장
 // ────────────────────────────────────────────
 async function postDraftToWP(params: {
@@ -632,32 +611,81 @@ export async function GET(req: NextRequest) {
       allKeywords[i].news = newsResults[i];
     }
 
-    // 블로그 생성 + WP draft 저장 (병렬, 개별 60초 타임아웃)
-    console.log('[auto-publish] 블로그 생성 + draft 저장 (병렬)...');
+    // V3 파이프라인 (병렬, 개별 90초 타임아웃)
+    // 블로그 생성 → SEO/AEO 조립 → WP draft → Google 색인
+    console.log('[auto-publish v3] 파이프라인 병렬 실행...');
     const settled = await Promise.allSettled(
       allKeywords.map(async (item) => {
         const { keyword, category, news } = item;
 
         return withTimeout(
           (async () => {
+            // 1. 롱테일 제목 3안 + FAQ + 요약 생성
+            const longtail = await generateLongtailContent(keyword, category, news);
+            const bestTitle = longtail.titles[0] || keyword;
+
+            // 2. 블로그 본문 생성 (기존 generateBlog 활용)
             const blog = await generateBlog(keyword, category, news);
+            const finalTitle = bestTitle || blog.title;
+
+            // 3. 콘텐츠 조립: 요약박스 + 본문 + FAQ + JSON-LD
+            let content = blog.content;
+            if (longtail.summary) {
+              content = buildSummaryBox(longtail.summary) + '\n' + content;
+            }
+            const jsonLds: string[] = [];
+            if (longtail.faqs.length > 0) {
+              const { html: faqHtml, jsonLd: faqJsonLd } = buildFaqSection(longtail.faqs);
+              content += '\n' + faqHtml;
+              if (faqJsonLd) jsonLds.push(faqJsonLd);
+            }
+
+            const finalMetaDesc = safeExcerpt(blog.metaDesc || longtail.summary);
+
+            // 4. WP draft 저장
             const { postId, wpUrl } = await postDraftToWP({
-              title: blog.title, content: blog.content, metaDesc: blog.metaDesc,
+              title: finalTitle, content, metaDesc: finalMetaDesc,
               tags: blog.tags, category, keyword, slug: blog.slug,
             });
 
+            // 5. Article JSON-LD 추가하여 본문 업데이트
+            const articleLd = buildArticleJsonLd({
+              title: finalTitle, url: wpUrl, description: finalMetaDesc,
+              datePublished: new Date().toISOString(),
+            });
+            jsonLds.push(articleLd);
+            const contentWithLd = appendJsonLd(content, ...jsonLds);
+            const wpBase = process.env.WP_SITE_URL;
+            const wpUser = process.env.WP_USERNAME;
+            const wpPass = process.env.WP_APP_PASSWORD;
+            if (wpBase && wpUser && wpPass) {
+              const auth = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
+              await fetch(`${wpBase}/wp-json/wp/v2/posts/${postId}`, {
+                method: 'POST',
+                headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: contentWithLd }),
+              }).catch(() => {});
+            }
+
+            // 6. Firestore 기록
             await adminDb.collection('aitory_published_keywords').add({
               keyword, category, wpUrl, postId,
+              title: finalTitle, slug: blog.slug, metaDesc: finalMetaDesc,
               imageStatus: 'pending', status: 'draft', publishedAt: new Date(),
               tweetUrl: null, tweetError: null,
+              pipeline: 'v3-cron',
+              longtailTitles: longtail.titles,
+              faqCount: longtail.faqs.length,
+              seoApplied: true,
             });
 
-            // Google Indexing API 색인 요청 (실패해도 진행)
-            await requestGoogleIndexing(wpUrl);
+            // 7. Google Indexing API 색인 요청 (실패해도 진행)
+            const indexResult = await requestIndexing(wpUrl);
+            const indexed = indexResult.success;
 
-            return { keyword, category, postId, wpUrl };
+            return { keyword, category, postId, wpUrl, title: finalTitle, indexed };
           })(),
-          60000,
+          90000,
           keyword
         );
       })
@@ -667,9 +695,10 @@ export async function GET(req: NextRequest) {
       if (s.status === 'fulfilled') {
         results.push({
           keyword: s.value.keyword, category: s.value.category, success: true,
-          wpUrl: s.value.wpUrl,
+          wpUrl: s.value.wpUrl, title: s.value.title,
+          seoApplied: true, indexed: s.value.indexed,
         });
-        console.log(`[auto-publish] draft 성공: ${s.value.keyword}`);
+        console.log(`[auto-publish v3] 성공: ${s.value.keyword} → ${s.value.title} (indexed=${s.value.indexed})`);
       } else {
         const msg = s.reason instanceof Error ? s.reason.message : String(s.reason);
         results.push({ keyword: '(에러)', category: '', success: false, error: msg });

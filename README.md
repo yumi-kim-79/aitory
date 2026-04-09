@@ -314,6 +314,7 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-09 | V3 버튼 UI 추가 - /trend 자동발행 탭에 V3 수동 실행 버튼(emerald-600), 색인 결과 표시 |
 | 2026-04-09 | 기존 글 색인 요청 버튼 - WP 최근 100개 조회, Firestore aitory_indexed_urls(7일) 중복 방지 |
 | 2026-04-09 | 기존 글 SEO+AEO 일괄 업데이트 - 요약박스/FAQ/JSON-LD 삽입, kbuzz-summary 마커로 중복 방지 |
+| 2026-04-09 | Cron 자동발행 V3 업그레이드 - 1단계 파이프라인에 SEO+AEO+Google 색인 통합, 매일 KST 07:00 |
 | 2026-04-09 | Revive Social 플러그인 설치 - Facebook 페이지 생성 제한으로 연동 보류 |
 | 2026-04-09 | 네이버 서치어드바이저 등록 예정 - searchadvisor.naver.com |
 | 2026-04-08 | 1단계 고도화 - 뉴스 10개×1000자 수집, 블로그 2000자+, 소제목 4개+, max_tokens 3500 |
