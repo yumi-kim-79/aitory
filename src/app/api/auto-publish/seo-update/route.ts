@@ -191,6 +191,12 @@ export async function POST(request: Request) {
   const wp = wpAuth();
   if (!wp) return NextResponse.json({ error: 'WP 환경변수 부족' }, { status: 500 });
 
+  // Firebase Admin sanity check
+  console.log(`[seo-update] adminDb 상태: ${!!adminDb}, 타입: ${typeof adminDb}`);
+  if (!adminDb) {
+    return NextResponse.json({ error: 'Firebase Admin 미초기화' }, { status: 500 });
+  }
+
   const BATCH_SIZE = 5;
 
   try {
@@ -211,7 +217,7 @@ export async function POST(request: Request) {
 
     let succeeded = 0;
     let failed = 0;
-    const results: { postId: number; title: string; success: boolean; error?: string }[] = [];
+    const results: { postId: number; title: string; success: boolean; error?: string; firestoreError?: string; firestoreSaved?: boolean }[] = [];
 
     for (const post of pending) {
       const title = (post.title?.rendered || '').replace(/<[^>]+>/g, '').trim();
@@ -266,24 +272,33 @@ export async function POST(request: Request) {
 
         // WP 업데이트 성공 → 즉시 succeeded 카운트
         succeeded++;
-        results.push({ postId: post.id, title, success: true });
         console.log(`[seo-update] WP 성공: ${post.id} ${title}`);
 
         // 4. Firestore 기록 (postId 기반 deterministic doc ID, idempotent set)
         // 1차 중복 방지 신호이므로 반드시 성공시켜야 함
+        let firestoreSaved = false;
+        let firestoreError: string | undefined;
         try {
-          await adminDb.collection('aitory_seo_updated').doc(`post_${post.id}`).set({
+          console.log(`[seo-update] Firestore .set() 호출 시작: post_${post.id}, adminDb 존재=${!!adminDb}`);
+          const ref = adminDb.collection('aitory_seo_updated').doc(`post_${post.id}`);
+          console.log(`[seo-update] Firestore ref 생성됨: ${ref.path}`);
+          await ref.set({
             postId: post.id,
             url: post.link,
             title,
             updatedAt: new Date(),
             faqCount: longtail.faqs.length,
           });
-          console.log(`[seo-update] Firestore 기록 성공: post_${post.id}`);
+          firestoreSaved = true;
+          console.log(`[seo-update] ✅ Firestore 기록 성공: post_${post.id}`);
         } catch (fsErr) {
-          const fsMsg = fsErr instanceof Error ? fsErr.message : String(fsErr);
-          console.error(`[seo-update] ⚠️ Firestore 기록 실패: post_${post.id}`, fsMsg);
+          firestoreError = fsErr instanceof Error ? `${fsErr.name}: ${fsErr.message}` : String(fsErr);
+          console.error(`[seo-update] ❌ Firestore 기록 실패: post_${post.id}`, firestoreError);
+          if (fsErr instanceof Error && fsErr.stack) {
+            console.error(`[seo-update] Firestore 스택:`, fsErr.stack.slice(0, 500));
+          }
         }
+        results.push({ postId: post.id, title, success: true, firestoreSaved, firestoreError });
       } catch (err) {
         failed++;
         const msg = err instanceof Error ? err.message : String(err);

@@ -556,6 +556,8 @@ export default function TrendPage() {
                     setSeoTotal(initialTotal);
                     let totalSucceeded = 0;
                     let totalFailed = 0;
+                    let firestoreFailedCount = 0;
+                    let firstFirestoreError: string | undefined;
                     try {
                       while (true) {
                         if (seoStopRef.current) { console.log("[seo-update] 사용자 중단"); break; }
@@ -571,15 +573,27 @@ export default function TrendPage() {
                         const batchProcessed = data.total ?? 0;
                         totalSucceeded += data.succeeded ?? 0;
                         totalFailed += data.failed ?? 0;
+                        // Firestore 저장 실패 개수 집계
+                        if (Array.isArray(data.results)) {
+                          for (const r of data.results as { firestoreSaved?: boolean; firestoreError?: string }[]) {
+                            if (r.firestoreSaved === false || r.firestoreError) {
+                              firestoreFailedCount++;
+                              if (!firstFirestoreError && r.firestoreError) firstFirestoreError = r.firestoreError;
+                            }
+                          }
+                        }
                         // 분자는 누적 성공+실패 합계로 (실제 처리 완료 개수)
                         setSeoProcessed(Math.min(totalSucceeded + totalFailed, initialTotal));
                         const remaining = data.totalRemaining ?? 0;
                         if (batchProcessed === 0 || remaining === 0) break;
                       }
+                      const fsNote = firestoreFailedCount > 0
+                        ? ` ⚠️ Firestore 저장 실패 ${firestoreFailedCount}건${firstFirestoreError ? ` (${firstFirestoreError.slice(0, 80)})` : ""}`
+                        : "";
                       setAutoResults([{
                         keyword: seoStopRef.current ? "✨ SEO+AEO 업데이트 중단됨" : "✨ SEO+AEO 업데이트 완료",
-                        success: !seoStopRef.current,
-                        error: `처리 ${totalSucceeded + totalFailed}개 / 성공 ${totalSucceeded} / 실패 ${totalFailed}`,
+                        success: !seoStopRef.current && firestoreFailedCount === 0,
+                        error: `처리 ${totalSucceeded + totalFailed}개 / 성공 ${totalSucceeded} / 실패 ${totalFailed}${fsNote}`,
                       }]);
                       setSeoPending(Math.max(0, initialTotal - (totalSucceeded + totalFailed)));
                     } catch (err) {
