@@ -3,7 +3,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import { verifyToken } from '@/lib/middleware';
 import { getUserDoc } from '@/lib/auth';
 import { generateLongtailContent } from '@/lib/longtail-title';
-import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd } from '@/lib/seo-aeo';
+import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd, SEO_AEO_MARKER, SEO_AEO_MARKER_REGEX } from '@/lib/seo-aeo';
 
 export const maxDuration = 300;
 
@@ -113,7 +113,7 @@ async function getUpdatedIds(): Promise<Set<number>> {
 // ────────────────────────────────────────────
 function hasSeoMarkers(post: WpPost): boolean {
   const haystack = (post.content?.raw || '') + '\n' + (post.content?.rendered || '');
-  return /kbuzz-seo-aeo-applied|kbuzz-summary|kbuzz-faq|faq-section/.test(haystack);
+  return SEO_AEO_MARKER_REGEX.test(haystack);
 }
 
 // ────────────────────────────────────────────
@@ -205,10 +205,11 @@ export async function POST(request: Request) {
         // 1. 롱테일 + FAQ + 요약 생성
         const longtail = await generateLongtailContent(title, categoryName, plainSnippet);
 
-        // 2. 본문 조립: [요약박스] + 기존 본문 + [FAQ] + [JSON-LD]
-        let newContent = rawContent;
+        // 2. 본문 조립: [마커-항상] + [요약박스-옵션] + 기존 본문 + [FAQ-옵션] + [JSON-LD]
+        // ⚠️ SEO_AEO_MARKER는 longtail.summary 유무와 무관하게 항상 본문 맨 앞에 삽입
+        let newContent = SEO_AEO_MARKER + '\n' + rawContent;
         if (longtail.summary) {
-          newContent = buildSummaryBox(longtail.summary) + '\n' + newContent;
+          newContent = SEO_AEO_MARKER + '\n' + buildSummaryBox(longtail.summary) + '\n' + rawContent;
         }
         const jsonLds: string[] = [];
         if (longtail.faqs.length > 0) {
@@ -249,6 +250,25 @@ export async function POST(request: Request) {
         succeeded++;
         results.push({ postId: post.id, title, success: true });
         console.log(`[seo-update] WP 성공: ${post.id} ${title}`);
+
+        // 검증: 저장된 본문에 마커가 실제로 남아있는지 재조회 (진단)
+        try {
+          const verifyRes = await fetch(`${wp.wpBase}/wp-json/wp/v2/posts/${post.id}?context=edit`, {
+            headers: wp.headers, signal: AbortSignal.timeout(8000),
+          });
+          if (verifyRes.ok) {
+            const verifyPost = (await verifyRes.json()) as WpPost;
+            const haystack = (verifyPost.content?.raw || '') + '\n' + (verifyPost.content?.rendered || '');
+            const markerFound = SEO_AEO_MARKER_REGEX.test(haystack);
+            if (!markerFound) {
+              console.warn(`[seo-update] ⚠️ 마커 누락! postId=${post.id} - WP가 마커를 strip 했을 가능성. raw 앞 200자:`, (verifyPost.content?.raw || '').slice(0, 200));
+            } else {
+              console.log(`[seo-update] ✅ 마커 검증 성공: ${post.id}`);
+            }
+          }
+        } catch (verifyErr) {
+          console.error(`[seo-update] 검증 조회 실패: ${post.id}`, verifyErr instanceof Error ? verifyErr.message : verifyErr);
+        }
 
         // 4. Firestore 기록 (실패해도 WP 성공은 유지 - 마커가 백업)
         try {
