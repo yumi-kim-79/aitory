@@ -558,21 +558,30 @@ export default function TrendPage() {
                     let totalFailed = 0;
                     let firestoreFailedCount = 0;
                     let firstFirestoreError: string | undefined;
+                    let firstWpError: string | undefined;
+                    let stopReason = "";
+                    const MAX_BATCHES = 14;  // 69 ÷ 5 ≈ 14
+                    let batchCount = 0;
                     try {
                       while (true) {
-                        if (seoStopRef.current) { console.log("[seo-update] 사용자 중단"); break; }
+                        if (seoStopRef.current) { stopReason = "사용자 중단"; break; }
+                        if (batchCount >= MAX_BATCHES) { stopReason = `최대 배치 수(${MAX_BATCHES}) 초과로 중단`; break; }
+                        batchCount++;
                         // 매 배치마다 토큰 강제 갱신 (1시간 만료 방지)
                         const token = await getIdToken(true);
-                        if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); break; }
+                        if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); return; }
                         const res = await fetch("/api/auto-publish/seo-update", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(290000) });
                         const data = await res.json();
                         if (!res.ok) {
-                          setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]);
-                          break;
+                          setAutoResults([{ keyword: "서버 오류", ok: false, error: data.error || `HTTP ${res.status}` }]);
+                          return;
                         }
                         const batchProcessed = data.total ?? 0;
-                        totalSucceeded += data.succeeded ?? 0;
-                        totalFailed += data.failed ?? 0;
+                        const batchSucceeded = data.succeeded ?? 0;
+                        const batchFailed = data.failed ?? 0;
+                        totalSucceeded += batchSucceeded;
+                        totalFailed += batchFailed;
+                        if (!firstWpError && data.firstError) firstWpError = data.firstError;
                         // Firestore 저장 실패 개수 집계
                         if (Array.isArray(data.results)) {
                           for (const r of data.results as { firestoreSaved?: boolean; firestoreError?: string }[]) {
@@ -582,18 +591,32 @@ export default function TrendPage() {
                             }
                           }
                         }
-                        // 분자는 누적 성공+실패 합계로 (실제 처리 완료 개수)
+                        // 분자는 누적 성공+실패 합계로
                         setSeoProcessed(Math.min(totalSucceeded + totalFailed, initialTotal));
+
+                        // 안전장치 1: 배치 성공률 0% → 즉시 중단
+                        if (batchProcessed > 0 && batchSucceeded === 0) {
+                          stopReason = `배치 성공률 0% (${batchFailed}건 모두 실패) → 즉시 중단`;
+                          break;
+                        }
+                        // 안전장치 2: 서버에서 wpBroken 신호 → 즉시 중단
+                        if (data.wpBroken) {
+                          stopReason = "WP API 실패 감지 (Claude 크레딧 보호)";
+                          break;
+                        }
+                        // 정상 종료
                         const remaining = data.totalRemaining ?? 0;
                         if (batchProcessed === 0 || remaining === 0) break;
                       }
                       const fsNote = firestoreFailedCount > 0
                         ? ` ⚠️ Firestore 저장 실패 ${firestoreFailedCount}건${firstFirestoreError ? ` (${firstFirestoreError.slice(0, 80)})` : ""}`
                         : "";
+                      const wpNote = firstWpError ? ` ⚠️ WP 첫 에러: ${firstWpError.slice(0, 100)}` : "";
+                      const stopNote = stopReason ? ` [중단: ${stopReason}]` : "";
                       setAutoResults([{
-                        keyword: seoStopRef.current ? "✨ SEO+AEO 업데이트 중단됨" : "✨ SEO+AEO 업데이트 완료",
-                        success: !seoStopRef.current && firestoreFailedCount === 0,
-                        error: `처리 ${totalSucceeded + totalFailed}개 / 성공 ${totalSucceeded} / 실패 ${totalFailed}${fsNote}`,
+                        keyword: stopReason ? "✨ SEO+AEO 업데이트 중단됨" : "✨ SEO+AEO 업데이트 완료",
+                        success: !stopReason && firestoreFailedCount === 0 && totalFailed === 0,
+                        error: `처리 ${totalSucceeded + totalFailed}개 / 성공 ${totalSucceeded} / 실패 ${totalFailed}${fsNote}${wpNote}${stopNote}`,
                       }]);
                       setSeoPending(Math.max(0, initialTotal - (totalSucceeded + totalFailed)));
                     } catch (err) {

@@ -217,9 +217,20 @@ export async function POST(request: Request) {
 
     let succeeded = 0;
     let failed = 0;
-    const results: { postId: number; title: string; success: boolean; error?: string; firestoreError?: string; firestoreSaved?: boolean }[] = [];
+    const results: { postId: number; title: string; success: boolean; error?: string; firestoreError?: string; firestoreSaved?: boolean; skipped?: boolean }[] = [];
+
+    let wpBroken = false;
+    let firstError: string | undefined;
 
     for (const post of pending) {
+      // 이전 글에서 WP 실패가 감지되면 Claude 호출 없이 즉시 스킵 (크레딧 보호)
+      if (wpBroken) {
+        failed++;
+        const skipMsg = 'WP API 실패 감지로 배치 스킵 (Claude 크레딧 보호)';
+        results.push({ postId: post.id, title: '', success: false, error: skipMsg, skipped: true });
+        continue;
+      }
+
       const title = (post.title?.rendered || '').replace(/<[^>]+>/g, '').trim();
       const rawContent = post.content?.raw || post.content?.rendered || '';
       const plainSnippet = rawContent.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').slice(0, 800);
@@ -304,6 +315,12 @@ export async function POST(request: Request) {
         const msg = err instanceof Error ? err.message : String(err);
         results.push({ postId: post.id, title, success: false, error: msg });
         console.error(`[seo-update] 실패: ${post.id}`, msg);
+        if (!firstError) firstError = msg;
+        // WP 관련 실패 감지 → 즉시 wpBroken으로 표시하여 다음 글부터 스킵
+        if (/WP|wp-json|401|403|404|5\d\d/.test(msg)) {
+          wpBroken = true;
+          console.error(`[seo-update] ⚠️ WP 실패 감지 → 이후 글 Claude 호출 차단`);
+        }
       }
 
       // API 부하 방지 1초
@@ -316,6 +333,8 @@ export async function POST(request: Request) {
       succeeded,
       failed,
       totalRemaining: allPending.length - pending.length,
+      firstError,
+      wpBroken,
       results,
     });
   } catch (err) {
