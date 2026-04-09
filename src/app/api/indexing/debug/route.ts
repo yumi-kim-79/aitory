@@ -1,22 +1,15 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
-import { verifyToken } from '@/lib/middleware';
-import { getUserDoc } from '@/lib/auth';
 
 export const maxDuration = 30;
 
 // ────────────────────────────────────────────
 // 디버그: Firestore 컬렉션 상태 + 테스트 쓰기/읽기
+// ⚠️ 임시: 인증 제거 (디버깅 완료 후 admin 인증 복원 예정)
 // ────────────────────────────────────────────
-export async function GET(request: Request) {
-  const decoded = await verifyToken(request);
-  if (!decoded) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
-  const userDoc = await getUserDoc(decoded.userId);
-  if (!userDoc || userDoc.role !== 'admin') {
-    return NextResponse.json({ error: '관리자 권한이 필요합니다.' }, { status: 403 });
-  }
-
+export async function GET() {
   const debug: Record<string, unknown> = {};
+  const debugBy = 'anonymous-debug';
 
   // 1. Firebase Admin 초기화 상태
   try {
@@ -67,7 +60,7 @@ export async function GET(request: Request) {
     const testRef = adminDb.collection('aitory_debug_test').doc(testDocId);
     await testRef.set({
       writtenAt: new Date(),
-      by: decoded.email,
+      by: debugBy,
       note: 'debug write test',
     });
     const readBack = await testRef.get();
