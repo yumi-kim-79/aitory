@@ -320,6 +320,7 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-09 | SEO+AEO 업데이트 Firestore 기록 버그 수정 - WP 마커(HTML 주석+raw/rendered 양쪽), Firestore 분리 |
 | 2026-04-09 | SEO+AEO 마커 감지 근본 원인 수정 - 마커 무조건 prepend, 3중 신호(주석+hidden div+텍스트), 검증 재조회 |
 | 2026-04-09 | DALL-E 프롬프트 사진 느낌 업그레이드 - Canon EOS R5/85mm/photorealistic, 카테고리별 사진 스타일, 공통 lib |
+| 2026-04-09 | SEO+AEO 중복방지 Firestore postId 기반으로 변경 - context=edit 제거, doc(post_id).set() idempotent |
 | 2026-04-09 | Revive Social 플러그인 설치 - Facebook 페이지 생성 제한으로 연동 보류 |
 | 2026-04-09 | 네이버 서치어드바이저 등록 예정 - searchadvisor.naver.com |
 | 2026-04-08 | 1단계 고도화 - 뉴스 10개×1000자 수집, 블로그 2000자+, 소제목 4개+, max_tokens 3500 |

@@ -41,10 +41,12 @@ async function fetchRecentWpPosts(): Promise<WpPost[]> {
   const wp = wpAuth();
   if (!wp) return [];
   const all: WpPost[] = [];
+  // context=edit는 일부 호스팅(예: cafe24)에서 권한 문제가 있어 사용하지 않음
+  // rendered만 받고, 중복 방지는 Firestore postId를 1차 신호로 사용
   for (const page of [1, 2]) {
     try {
       const res = await fetch(
-        `${wp.wpBase}/wp-json/wp/v2/posts?status=publish&per_page=50&page=${page}&orderby=date&context=edit`,
+        `${wp.wpBase}/wp-json/wp/v2/posts?status=publish&per_page=50&page=${page}&orderby=date`,
         { headers: wp.headers, signal: AbortSignal.timeout(15000) }
       );
       if (!res.ok) break;
@@ -96,28 +98,44 @@ async function fetchMediaUrl(mediaId: number): Promise<string | undefined> {
 }
 
 // ────────────────────────────────────────────
-// 이미 업데이트된 글 조회
+// 이미 업데이트된 글 조회 (Firestore postId 1차 신호)
+// 문서 ID 자체를 postId로 사용하여 deterministic 조회
 // ────────────────────────────────────────────
 async function getUpdatedIds(): Promise<Set<number>> {
   try {
     const snap = await adminDb.collection('aitory_seo_updated').get();
-    return new Set(snap.docs.map((d) => d.data().postId as number).filter((n) => typeof n === 'number'));
-  } catch {
+    const ids = new Set<number>();
+    for (const doc of snap.docs) {
+      // 문서 ID에서 postId 추출 (신규: post_<id>)
+      if (doc.id.startsWith('post_')) {
+        const n = parseInt(doc.id.slice(5), 10);
+        if (!isNaN(n)) ids.add(n);
+      }
+      // 호환: 기존 random ID 문서의 postId 필드도 수용
+      const data = doc.data();
+      if (typeof data.postId === 'number') ids.add(data.postId);
+    }
+    console.log(`[seo-update] Firestore updatedIds ${ids.size}개`);
+    return ids;
+  } catch (e) {
+    console.error('[seo-update] getUpdatedIds 실패:', e instanceof Error ? e.message : e);
     return new Set();
   }
 }
 
 // ────────────────────────────────────────────
-// SEO+AEO 마커 감지 (이미 업데이트된 본문)
-// rendered/raw 양쪽 + HTML 주석 마커 모두 확인
+// SEO+AEO 마커 감지 (보조 신호)
+// rendered만 (context=edit 미사용으로 raw 없음)
 // ────────────────────────────────────────────
 function hasSeoMarkers(post: WpPost): boolean {
-  const haystack = (post.content?.raw || '') + '\n' + (post.content?.rendered || '');
+  const haystack = post.content?.rendered || '';
   return SEO_AEO_MARKER_REGEX.test(haystack);
 }
 
 // ────────────────────────────────────────────
 // pending 글 추출
+// 1차: Firestore postId 매칭 (신뢰)
+// 2차: WP rendered 마커 (보조 fallback)
 // ────────────────────────────────────────────
 async function getPendingPosts(): Promise<WpPost[]> {
   const [posts, updatedIds] = await Promise.all([fetchRecentWpPosts(), getUpdatedIds()]);
@@ -251,38 +269,20 @@ export async function POST(request: Request) {
         results.push({ postId: post.id, title, success: true });
         console.log(`[seo-update] WP 성공: ${post.id} ${title}`);
 
-        // 검증: 저장된 본문에 마커가 실제로 남아있는지 재조회 (진단)
+        // 4. Firestore 기록 (postId 기반 deterministic doc ID, idempotent set)
+        // 1차 중복 방지 신호이므로 반드시 성공시켜야 함
         try {
-          const verifyRes = await fetch(`${wp.wpBase}/wp-json/wp/v2/posts/${post.id}?context=edit`, {
-            headers: wp.headers, signal: AbortSignal.timeout(8000),
-          });
-          if (verifyRes.ok) {
-            const verifyPost = (await verifyRes.json()) as WpPost;
-            const haystack = (verifyPost.content?.raw || '') + '\n' + (verifyPost.content?.rendered || '');
-            const markerFound = SEO_AEO_MARKER_REGEX.test(haystack);
-            if (!markerFound) {
-              console.warn(`[seo-update] ⚠️ 마커 누락! postId=${post.id} - WP가 마커를 strip 했을 가능성. raw 앞 200자:`, (verifyPost.content?.raw || '').slice(0, 200));
-            } else {
-              console.log(`[seo-update] ✅ 마커 검증 성공: ${post.id}`);
-            }
-          }
-        } catch (verifyErr) {
-          console.error(`[seo-update] 검증 조회 실패: ${post.id}`, verifyErr instanceof Error ? verifyErr.message : verifyErr);
-        }
-
-        // 4. Firestore 기록 (실패해도 WP 성공은 유지 - 마커가 백업)
-        try {
-          await adminDb.collection('aitory_seo_updated').add({
+          await adminDb.collection('aitory_seo_updated').doc(`post_${post.id}`).set({
             postId: post.id,
             url: post.link,
             title,
             updatedAt: new Date(),
             faqCount: longtail.faqs.length,
           });
-          console.log(`[seo-update] Firestore 기록 성공: ${post.id}`);
+          console.log(`[seo-update] Firestore 기록 성공: post_${post.id}`);
         } catch (fsErr) {
           const fsMsg = fsErr instanceof Error ? fsErr.message : String(fsErr);
-          console.error(`[seo-update] Firestore 기록 실패 (계속 진행): ${post.id}`, fsMsg);
+          console.error(`[seo-update] ⚠️ Firestore 기록 실패: post_${post.id}`, fsMsg);
         }
       } catch (err) {
         failed++;
