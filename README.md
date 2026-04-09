@@ -324,6 +324,7 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-09 | SEO+AEO Firestore 저장 디버그 API 추가 - /api/indexing/debug (admin GET, 컬렉션 상태+테스트 write/read) |
 | 2026-04-09 | SEO+AEO Firestore 저장 실패 원인 진단 강화 - .set() 전후 로깅, firestoreError 응답에 포함, UI 표시 |
 | 2026-04-10 | SEO+AEO 완전 재설계 - wpBroken 즉시 중단/maxBatches 14/0% 성공률 break/firstError 노출/debug API 인증 복원 |
+| 2026-04-10 | 모든 글 하단 AI 이미지 안내 문구 통일 - ensureAiImageNotice() 헬퍼, 중복 방지(kbuzz-ai-notice 클래스) |
 | 2026-04-09 | Revive Social 플러그인 설치 - Facebook 페이지 생성 제한으로 연동 보류 |
 | 2026-04-09 | 네이버 서치어드바이저 등록 예정 - searchadvisor.naver.com |
 | 2026-04-08 | 1단계 고도화 - 뉴스 10개×1000자 수집, 블로그 2000자+, 소제목 4개+, max_tokens 3500 |

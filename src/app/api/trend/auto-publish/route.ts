@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb } from '@/lib/firebase-admin';
 import { generateLongtailContent } from '@/lib/longtail-title';
-import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd } from '@/lib/seo-aeo';
+import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd, ensureAiImageNotice } from '@/lib/seo-aeo';
 import { requestIndexing } from '@/lib/google-indexing';
 import { appendPhotoSuffix } from '@/lib/dalle-photo-prompt';
 
@@ -641,6 +641,8 @@ export async function GET(req: NextRequest) {
               content += '\n' + faqHtml;
               if (faqJsonLd) jsonLds.push(faqJsonLd);
             }
+            // AI 이미지 안내 문구 (모든 글 하단 공통)
+            content = ensureAiImageNotice(content);
 
             const finalMetaDesc = safeExcerpt(blog.metaDesc || longtail.summary);
 

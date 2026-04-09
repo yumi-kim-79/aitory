@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb } from '@/lib/firebase-admin';
+import { ensureAiImageNotice } from '@/lib/seo-aeo';
 
 export const maxDuration = 300;
 
@@ -131,8 +132,7 @@ async function uploadImageToDraft(postId: number, imageUrl: string | null, keywo
   const post = await postRes.json();
   if (post.content?.rendered || post.content?.raw) {
     const currentContent = post.content.raw || post.content.rendered;
-    updateBody.content = currentContent +
-      '\n<p style="color:#888;font-size:0.85em;border-top:1px solid #eee;margin-top:30px;padding-top:15px;text-align:center;">※ 본문의 이미지는 기사의 내용을 바탕으로 AI로 재구성하였습니다.</p>';
+    updateBody.content = ensureAiImageNotice(currentContent);
   }
 
   const res = await fetch(`${wpBase}/wp-json/wp/v2/posts/${postId}`, {

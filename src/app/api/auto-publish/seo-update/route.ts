@@ -3,7 +3,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import { verifyToken } from '@/lib/middleware';
 import { getUserDoc } from '@/lib/auth';
 import { generateLongtailContent } from '@/lib/longtail-title';
-import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd, SEO_AEO_MARKER, SEO_AEO_MARKER_REGEX } from '@/lib/seo-aeo';
+import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd, ensureAiImageNotice, SEO_AEO_MARKER, SEO_AEO_MARKER_REGEX } from '@/lib/seo-aeo';
 
 export const maxDuration = 300;
 
@@ -252,6 +252,8 @@ export async function POST(request: Request) {
           newContent += '\n' + faqHtml;
           if (faqJsonLd) jsonLds.push(faqJsonLd);
         }
+        // AI 이미지 안내 문구 (이미 있으면 skip)
+        newContent = ensureAiImageNotice(newContent);
         // Article JSON-LD
         const newMetaDesc = safeExcerpt(longtail.summary || (post.excerpt?.rendered || '').replace(/<[^>]+>/g, ''));
         const imageUrl = post.featured_media ? await fetchMediaUrl(post.featured_media) : undefined;

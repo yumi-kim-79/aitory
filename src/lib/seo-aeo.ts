@@ -94,3 +94,13 @@ export function appendJsonLd(content: string, ...jsonLds: string[]): string {
     .join('\n');
   return scripts ? `${content}\n${scripts}` : content;
 }
+
+/** AI 이미지 안내 문구 (모든 글 하단 공통)
+ *  마커 클래스(kbuzz-ai-notice)로 중복 삽입 방지 */
+export const AI_IMAGE_NOTICE_HTML = `<p class="kbuzz-ai-notice" style="font-size:0.85em;color:#888;border-top:1px solid #eee;padding-top:12px;margin-top:24px;">※ 본문의 이미지는 기사의 내용을 바탕으로 AI로 재구성하였습니다.</p>`;
+
+/** AI 이미지 안내 문구를 본문 끝에 1회만 추가 (이미 있으면 skip) */
+export function ensureAiImageNotice(content: string): string {
+  if (/kbuzz-ai-notice|AI로 재구성/.test(content)) return content;
+  return `${content}\n${AI_IMAGE_NOTICE_HTML}`;
+}

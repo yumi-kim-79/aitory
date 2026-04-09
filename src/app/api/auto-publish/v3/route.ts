@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb } from '@/lib/firebase-admin';
 import { generateLongtailContent } from '@/lib/longtail-title';
-import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd } from '@/lib/seo-aeo';
+import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd, ensureAiImageNotice } from '@/lib/seo-aeo';
 import { requestIndexing } from '@/lib/google-indexing';
 import { verifyToken } from '@/lib/middleware';
 import { getUserDoc } from '@/lib/auth';
@@ -285,6 +285,9 @@ excerpt는 반드시 140자 이내.${linkInstruction}
     content += '\n' + faqHtml;
     content = appendJsonLd(content, faqJsonLd);
   }
+
+  // AI 이미지 안내 문구 (모든 글 하단 공통)
+  content = ensureAiImageNotice(content);
 
   const metaDesc = safeExcerpt(parsed.metaDesc as string || parsed.excerpt as string || '');
   let slug = (parsed.slug as string || '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
