@@ -61,9 +61,9 @@ function markdownToHtml(md: string): string {
 }
 
 // ────────────────────────────────────────────
-// WP 글 정보 조회
+// WP 글 정보 조회 (featured_media 포함)
 // ────────────────────────────────────────────
-async function fetchPostInfo(postId: number): Promise<{ title: string; content: string } | null> {
+async function fetchPostInfo(postId: number): Promise<{ title: string; content: string; featuredMedia?: number } | null> {
   const wpBase = process.env.WP_SITE_URL;
   const wpUser = process.env.WP_USERNAME;
   const wpPass = process.env.WP_APP_PASSWORD;
@@ -76,12 +76,51 @@ async function fetchPostInfo(postId: number): Promise<{ title: string; content: 
     });
     if (!res.ok) return null;
     const post = await res.json();
+    const featuredMedia = typeof post.featured_media === 'number' && post.featured_media > 0 ? post.featured_media : undefined;
     return {
       title: (post.title?.rendered || '').replace(/<[^>]+>/g, ''),
       content: (post.content?.raw || post.content?.rendered || '').replace(/<[^>]+>/g, '').slice(0, 1500),
+      featuredMedia,
     };
   } catch {
     return null;
+  }
+}
+
+// ────────────────────────────────────────────
+// 같은 카테고리 최근 글 3개 조회
+// ────────────────────────────────────────────
+async function fetchRelatedPosts(category: string): Promise<{ title: string; url: string }[]> {
+  const wpBase = process.env.WP_SITE_URL;
+  const wpUser = process.env.WP_USERNAME;
+  const wpPass = process.env.WP_APP_PASSWORD;
+  if (!wpBase || !wpUser || !wpPass) return [];
+
+  const auth = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
+  const headers = { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' };
+
+  try {
+    const catRes = await fetch(
+      `${wpBase}/wp-json/wp/v2/categories?search=${encodeURIComponent(category)}`,
+      { headers, signal: AbortSignal.timeout(8000) }
+    );
+    if (!catRes.ok) return [];
+    const cats = await catRes.json();
+    if (!cats.length) return [];
+
+    const postsRes = await fetch(
+      `${wpBase}/wp-json/wp/v2/posts?categories=${cats[0].id}&status=publish&per_page=3&orderby=date`,
+      { headers, signal: AbortSignal.timeout(8000) }
+    );
+    if (!postsRes.ok) return [];
+    const posts = await postsRes.json();
+
+    return posts.map((p: { title: { rendered: string }; link: string }) => ({
+      title: p.title.rendered.replace(/<[^>]+>/g, ''),
+      url: p.link,
+    }));
+  } catch {
+    return [];
   }
 }
 
@@ -90,8 +129,15 @@ async function fetchPostInfo(postId: number): Promise<{ title: string; content: 
 // ────────────────────────────────────────────
 async function regenerateFromAngle(
   originalTitle: string, originalContent: string, category: string,
+  relatedPosts: { title: string; url: string }[],
 ): Promise<{ title: string; content: string; metaDesc: string; tags: string[]; slug: string }> {
   const today = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  const linkInstruction = relatedPosts.length > 0
+    ? `\n본문 중 자연스러운 위치에 아래 관련 글 중 1~2개를 [텍스트](URL) 형식으로 마크다운 링크 삽입:
+${relatedPosts.map((p) => `- [${p.title}](${p.url})`).join('\n')}`
+    : '';
+
   const prompt = `다음 글을 완전히 다른 각도로 재작성해줘.
 
 원본 제목: ${originalTitle}
@@ -109,7 +155,7 @@ JSON만 반환:
 
 slug: 핵심 키워드 영문, 50자 이내, 소문자, 하이픈
 content 요건: 1500자 이상 마크다운, ## 소제목 4개+, 각 2~3단락, **굵게**, - 리스트 활용, 오늘(${today}) 기준
-excerpt는 140자 이내.`;
+excerpt는 140자 이내.${linkInstruction}`;
 
   const res = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
@@ -119,7 +165,14 @@ excerpt는 140자 이내.`;
   const text = res.content[0].type === 'text' ? res.content[0].text : '';
   const parsed = tryParseJSON(text);
 
-  const content = markdownToHtml(parsed.content as string);
+  let content = markdownToHtml(parsed.content as string);
+
+  // 관련 글 섹션 자동 추가
+  if (relatedPosts.length > 0) {
+    const relatedHtml = relatedPosts.map((p) => `<li><a href="${p.url}">${p.title}</a></li>`).join('\n');
+    content += `\n<h3>관련 글</h3>\n<ul>\n${relatedHtml}\n</ul>`;
+  }
+
   const metaDesc = (parsed.metaDesc as string || parsed.excerpt as string || '').slice(0, 150);
   let slug = (parsed.slug as string || '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
   if (slug.length > 50) slug = slug.slice(0, 50).replace(/-$/, '');
@@ -137,7 +190,7 @@ excerpt는 140자 이내.`;
 // WP draft 저장
 // ────────────────────────────────────────────
 async function postDraftToWP(params: {
-  title: string; content: string; metaDesc: string; tags: string[]; category: string; slug?: string;
+  title: string; content: string; metaDesc: string; tags: string[]; category: string; slug?: string; featuredMedia?: number;
 }): Promise<{ postId: number; wpUrl: string }> {
   const wpBase = process.env.WP_SITE_URL;
   const wpUser = process.env.WP_USERNAME;
@@ -176,6 +229,7 @@ async function postDraftToWP(params: {
   };
   if (params.slug) postBody.slug = params.slug;
   if (categoryId) postBody.categories = [categoryId];
+  if (params.featuredMedia) postBody.featured_media = params.featuredMedia;
 
   const postRes = await fetch(`${wpBase}/wp-json/wp/v2/posts`, { method: 'POST', headers, body: JSON.stringify(postBody) });
   const post = await postRes.json();
@@ -225,21 +279,29 @@ export async function POST(request: Request) {
       const { keyword, category, postId } = data as { keyword: string; category: string; postId: number };
 
       try {
-        const original = await fetchPostInfo(postId);
+        const [original, relatedPosts] = await Promise.all([
+          fetchPostInfo(postId),
+          fetchRelatedPosts(category),
+        ]);
         if (!original) throw new Error('원본 글 조회 실패');
+        console.log(`[republish] ${keyword}: 관련글 ${relatedPosts.length}개, featuredMedia=${original.featuredMedia ?? '없음'}`);
 
-        const regen = await regenerateFromAngle(original.title, original.content, category);
+        const regen = await regenerateFromAngle(original.title, original.content, category, relatedPosts);
         const { postId: newPostId, wpUrl: newWpUrl } = await postDraftToWP({
           title: regen.title, content: regen.content, metaDesc: regen.metaDesc,
           tags: regen.tags, category, slug: regen.slug,
+          featuredMedia: original.featuredMedia,
         });
 
         await adminDb.collection('aitory_published_keywords').add({
           keyword: regen.title,
           category, wpUrl: newWpUrl, postId: newPostId,
-          imageStatus: 'pending', status: 'draft', publishedAt: new Date(),
+          // 이미지 재활용했으면 done, 없으면 pending
+          imageStatus: original.featuredMedia ? 'done' : 'pending',
+          status: 'draft', publishedAt: new Date(),
           tweetUrl: null, tweetError: null,
           republishedFrom: keyword,
+          reusedFeaturedMedia: original.featuredMedia ?? null,
         });
 
         results.push({ originalKeyword: keyword, newTitle: regen.title, newPostId, newWpUrl, success: true });
