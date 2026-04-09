@@ -58,6 +58,8 @@ export default function TrendPage() {
   const [autoTweeting, setAutoTweeting] = useState(false);
   const [republishing, setRepublishing] = useState(false);
   const [v3Running, setV3Running] = useState(false);
+  const [bulkIndexing, setBulkIndexing] = useState(false);
+  const [indexPending, setIndexPending] = useState<number | null>(null);
   const [autoResults, setAutoResults] = useState<{ keyword: string; ok?: boolean; success?: boolean; postUrl?: string; wpUrl?: string; tweetUrl?: string; tweetError?: string; indexed?: boolean; title?: string; error?: string }[]>([]);
 
   const [copied, setCopied] = useState("");
@@ -70,6 +72,23 @@ export default function TrendPage() {
 
   useEffect(() => { fetchTrends(); }, [fetchTrends]);
   useEffect(() => { const t = setInterval(fetchTrends, 30 * 60 * 1000); return () => clearInterval(t); }, [fetchTrends]);
+
+  // 자동발행 탭 진입 시 색인 대기 글 개수 조회
+  useEffect(() => {
+    if (mainTab !== "auto" || !isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getIdToken();
+        if (!token) return;
+        const res = await fetch("/api/indexing/bulk", { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setIndexPending(typeof data.pending === "number" ? data.pending : null);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [mainTab, isAdmin, getIdToken]);
 
   const selectKeyword = (kw: string) => {
     setSelectedKeyword(kw);
@@ -449,6 +468,37 @@ export default function TrendPage() {
                 className="w-full py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 disabled:bg-emerald-300 flex items-center justify-center gap-2 mt-3"
               >
                 {v3Running ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />V3 실행 중... (3~5분 소요)</> : "🚀 V3: SEO+롱테일+색인 자동화"}
+              </button>
+              <button
+                onClick={async () => {
+                  setBulkIndexing(true); setAutoResults([]);
+                  try {
+                    const token = await getIdToken();
+                    if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); return; }
+                    const res = await fetch("/api/indexing/bulk", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(290000) });
+                    const data = await res.json();
+                    if (!res.ok) {
+                      setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]);
+                    } else {
+                      setAutoResults([{
+                        keyword: `📡 색인 요청 완료`,
+                        success: true,
+                        error: `총 ${data.total ?? 0}개 중 성공 ${data.succeeded ?? 0}개 / 실패 ${data.failed ?? 0}개`,
+                      }]);
+                      setIndexPending(0);
+                    }
+                  } catch (err) {
+                    setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
+                  } finally { setBulkIndexing(false); }
+                }}
+                disabled={bulkIndexing || indexPending === 0}
+                className="w-full py-3 bg-cyan-600 text-white rounded-xl font-medium hover:bg-cyan-700 disabled:bg-slate-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-3"
+              >
+                {bulkIndexing
+                  ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />색인 요청 중... ({indexPending ?? 0}개)</>
+                  : indexPending === null ? "📡 기존 글 전체 색인 요청 (조회 중...)"
+                  : indexPending === 0 ? "✅ 모든 글 색인 완료"
+                  : `📡 기존 글 전체 색인 요청 (${indexPending}개 대기 중)`}
               </button>
             </div>
 
