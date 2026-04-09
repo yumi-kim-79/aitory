@@ -4,6 +4,8 @@ import { adminDb } from '@/lib/firebase-admin';
 import { generateLongtailContent } from '@/lib/longtail-title';
 import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd } from '@/lib/seo-aeo';
 import { requestIndexing } from '@/lib/google-indexing';
+import { verifyToken } from '@/lib/middleware';
+import { getUserDoc } from '@/lib/auth';
 
 export const maxDuration = 300;
 
@@ -336,14 +338,9 @@ excerpt는 반드시 140자 이내.${linkInstruction}
 }
 
 // ────────────────────────────────────────────
-// Cron 핸들러
+// V3 파이프라인 실행 (공통)
 // ────────────────────────────────────────────
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+async function runV3Pipeline(): Promise<NextResponse> {
   const results: V3Result[] = [];
   _dupCache = null;
 
@@ -353,12 +350,11 @@ export async function GET(req: NextRequest) {
     console.log('[v3] 키워드 수집 시작...');
     const [,, kEntertainment, kSports] = await Promise.all([
       loadDupCache(),
-      Promise.resolve(), // placeholder
+      Promise.resolve(),
       selectFromRss('K-드라마 OR K-팝 OR 아이돌 OR 한류 OR 미스트롯', 'K-연예/한류', 3, batch),
       selectFromRss('손흥민 OR 류현진 OR 한국축구 OR 한국야구 OR KBO', 'K-스포츠', 2, batch),
     ]);
 
-    // 일반 카테고리
     const general: SelectedKeyword[] = [];
     for (const cat of [
       { name: '경제/비즈니스', q: '주식 OR 부동산 OR 경제 OR 환율', n: 2 },
@@ -376,11 +372,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: '키워드 0개', results });
     }
 
-    // 뉴스 병렬 수집
     const newsResults = await Promise.all(allKeywords.map((k) => fetchNews(k.keyword)));
     allKeywords.forEach((k, i) => { k.news = newsResults[i]; });
 
-    // V3 파이프라인 병렬 실행 (개별 90초 타임아웃)
     console.log('[v3] 파이프라인 병렬 실행...');
     const settled = await Promise.allSettled(
       allKeywords.map((item) => withTimeout(processKeyword(item), 90000, item.keyword))
@@ -410,4 +404,30 @@ export async function GET(req: NextRequest) {
     console.error('[v3] 치명적 오류:', msg);
     return NextResponse.json({ success: false, error: msg, results }, { status: 500 });
   }
+}
+
+// ────────────────────────────────────────────
+// GET: Cron (CRON_SECRET)
+// ────────────────────────────────────────────
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  return runV3Pipeline();
+}
+
+// ────────────────────────────────────────────
+// POST: 관리자 수동 실행 (Firebase admin token)
+// ────────────────────────────────────────────
+export async function POST(request: Request) {
+  const decoded = await verifyToken(request);
+  if (!decoded) return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
+
+  const userDoc = await getUserDoc(decoded.userId);
+  if (!userDoc || userDoc.role !== 'admin') {
+    return NextResponse.json({ error: '관리자 권한이 필요합니다.' }, { status: 403 });
+  }
+
+  return runV3Pipeline();
 }

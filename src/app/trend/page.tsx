@@ -57,7 +57,8 @@ export default function TrendPage() {
   const [autoImagePublishing, setAutoImagePublishing] = useState(false);
   const [autoTweeting, setAutoTweeting] = useState(false);
   const [republishing, setRepublishing] = useState(false);
-  const [autoResults, setAutoResults] = useState<{ keyword: string; ok?: boolean; success?: boolean; postUrl?: string; wpUrl?: string; tweetUrl?: string; tweetError?: string; error?: string }[]>([]);
+  const [v3Running, setV3Running] = useState(false);
+  const [autoResults, setAutoResults] = useState<{ keyword: string; ok?: boolean; success?: boolean; postUrl?: string; wpUrl?: string; tweetUrl?: string; tweetError?: string; indexed?: boolean; title?: string; error?: string }[]>([]);
 
   const [copied, setCopied] = useState("");
 
@@ -322,6 +323,7 @@ export default function TrendPage() {
                 <p><strong>2단계</strong> (07:05): DALL-E 이미지 생성 → WP 이미지 업로드 → <span className="text-amber-600 font-medium">검수 후 수동 발행</span></p>
                 <p><strong>3단계</strong> (수동): X 트윗 발행 (텍스트만)</p>
                 <p><strong>4단계</strong> (수동): 인기글 재발행 - 최근 30일 글 5개 다른 각도로 재작성</p>
+                <p><strong>V3</strong> (수동): 롱테일 제목 3안 + AI 요약박스 + FAQ + JSON-LD + Google 색인</p>
                 <p>K-콘텐츠 50%: <strong>K-연예/한류</strong>(3), <strong>K-스포츠</strong>(2) + 일반(5) = 10개</p>
                 <p className="text-red-500">정치/선거/탄핵 키워드는 자동 제외됩니다.</p>
               </div>
@@ -423,6 +425,31 @@ export default function TrendPage() {
               >
                 {republishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />재발행 중... (3~5분 소요)</> : "🔄 4단계: 인기글 재발행 (5개)"}
               </button>
+              <button
+                onClick={async () => {
+                  setV3Running(true); setAutoResults([]);
+                  try {
+                    const token = await getIdToken();
+                    if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); return; }
+                    const res = await fetch("/api/auto-publish/v3", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(290000) });
+                    const data = await res.json();
+                    if (!res.ok) { setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]); }
+                    else if (data.results?.length) {
+                      setAutoResults(data.results.map((r: { keyword: string; category: string; success: boolean; title?: string; wpUrl?: string; indexed?: boolean; error?: string }) => ({
+                        keyword: r.title ? `${r.keyword} → ${r.title}` : r.keyword,
+                        success: r.success, ok: r.success, wpUrl: r.wpUrl, indexed: r.indexed, error: r.error,
+                      })));
+                    }
+                    else { setAutoResults([{ keyword: "완료", success: true, error: data.message || `처리 ${data.total || 0}개, 색인 ${data.indexed || 0}개` }]); }
+                  } catch (err) {
+                    setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
+                  } finally { setV3Running(false); }
+                }}
+                disabled={v3Running}
+                className="w-full py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 disabled:bg-emerald-300 flex items-center justify-center gap-2 mt-3"
+              >
+                {v3Running ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />V3 실행 중... (3~5분 소요)</> : "🚀 V3: SEO+롱테일+색인 자동화"}
+              </button>
             </div>
 
             {autoResults.length > 0 && (
@@ -434,6 +461,11 @@ export default function TrendPage() {
                       <span className="font-medium text-sm">{r.success || r.ok ? "✅" : "❌"} {r.keyword}</span>
                       {(r.wpUrl || r.postUrl) && <a href={r.wpUrl || r.postUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline">{r.wpUrl || r.postUrl}</a>}
                     </div>
+                    {typeof r.indexed === "boolean" && (
+                      <span className={`text-xs mt-1 inline-block ${r.indexed ? "text-emerald-700" : "text-slate-500"}`}>
+                        {r.indexed ? "🔍 Google 색인 요청 성공" : "🔍 Google 색인 미설정/실패"}
+                      </span>
+                    )}
                     {r.tweetUrl && (
                       <a href={r.tweetUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-600 underline mt-1 inline-block">🐦 트윗됨</a>
                     )}
