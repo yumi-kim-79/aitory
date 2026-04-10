@@ -12,6 +12,14 @@
 - 생성 내용: 스크립트 / 설명문 / 해시태그 (Claude API 스트리밍)
 - UI: 발행된 글 카드 그리드 → "🎬 Shorts 생성" 버튼 → 3개 탭 (📝 스크립트 / 📄 설명문 / #️⃣ 해시태그) → 탭별 복사 버튼
 
+### Kbuzz/Shorts 호환 필드 통합 (2026-04 수정)
+- 모든 자동/수동 발행 경로에서 aitory_published_keywords 문서에 kbuzz 필드 함께 저장
+- 적용 writer: auto-publish, v3, republish-popular, post-to-wp
+- 문서 ID: `kbuzz_<wpPostId>` (deterministic, set merge:true)
+- 추가 필드: kbuzzUrl, kbuzzTitle, kbuzzPostId, kbuzzPublishedAt, kbuzzStatus='published'
+- status 필드: 'draft' → 'published'
+- 마이그레이션: scripts/update-kbuzz-status.mjs (기존 wpUrl 있는 문서 일괄 업데이트)
+
 ### 자동 발행 주말 스킵 (2026-04 추가)
 - 토요일(6) / 일요일(0) KST 기준 자동 발행 스킵
 - 적용 API: /api/trend/auto-publish, /api/trend/auto-publish-image

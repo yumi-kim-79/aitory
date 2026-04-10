@@ -689,17 +689,24 @@ export async function GET(req: NextRequest) {
               }).catch(() => {});
             }
 
-            // 6. Firestore 기록
-            await adminDb.collection('aitory_published_keywords').add({
+            // 6. Firestore 기록 (deterministic doc ID = kbuzz_<postId>, Shorts 목록 호환)
+            const publishedAt = new Date();
+            await adminDb.collection('aitory_published_keywords').doc(`kbuzz_${postId}`).set({
               keyword, category, wpUrl, postId,
               title: finalTitle, slug: blog.slug, metaDesc: finalMetaDesc,
-              imageStatus: 'pending', status: 'draft', publishedAt: new Date(),
+              imageStatus: 'pending', status: 'published', publishedAt,
               tweetUrl: null, tweetError: null,
               pipeline: 'v3-cron',
               longtailTitles: longtail.titles,
               faqCount: longtail.faqs.length,
               seoApplied: true,
-            });
+              // Kbuzz/Shorts 호환 필드
+              kbuzzUrl: wpUrl,
+              kbuzzTitle: finalTitle,
+              kbuzzPostId: postId,
+              kbuzzPublishedAt: publishedAt,
+              kbuzzStatus: 'published',
+            }, { merge: true });
 
             // 7. Google Indexing API 색인 요청 (실패해도 진행)
             const indexResult = await requestIndexing(wpUrl);

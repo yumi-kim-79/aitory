@@ -319,17 +319,24 @@ excerpt는 반드시 140자 이내.${linkInstruction}
     }).catch(() => {});
   }
 
-  // 7. Firestore 저장
-  await adminDb.collection('aitory_published_keywords').add({
+  // 7. Firestore 저장 (deterministic doc ID = kbuzz_<postId>, Shorts 목록 호환)
+  const publishedAt = new Date();
+  await adminDb.collection('aitory_published_keywords').doc(`kbuzz_${postId}`).set({
     keyword, category, wpUrl, postId,
     title, slug, metaDesc,
-    imageStatus: 'pending', status: 'draft',
-    publishedAt: new Date(),
+    imageStatus: 'pending', status: 'published',
+    publishedAt,
     tweetUrl: null, tweetError: null,
     pipeline: 'v3',
     longtailTitles: longtail.titles,
     faqCount: longtail.faqs.length,
-  });
+    // Kbuzz/Shorts 호환 필드
+    kbuzzUrl: wpUrl,
+    kbuzzTitle: title,
+    kbuzzPostId: postId,
+    kbuzzPublishedAt: publishedAt,
+    kbuzzStatus: 'published',
+  }, { merge: true });
 
   // 8. Google Indexing
   let indexed = false;

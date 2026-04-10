@@ -293,16 +293,24 @@ export async function POST(request: Request) {
           featuredMedia: original.featuredMedia,
         });
 
-        await adminDb.collection('aitory_published_keywords').add({
+        const publishedAt = new Date();
+        await adminDb.collection('aitory_published_keywords').doc(`kbuzz_${newPostId}`).set({
           keyword: regen.title,
           category, wpUrl: newWpUrl, postId: newPostId,
+          title: regen.title, metaDesc: regen.metaDesc,
           // 이미지 재활용했으면 done, 없으면 pending
           imageStatus: original.featuredMedia ? 'done' : 'pending',
-          status: 'draft', publishedAt: new Date(),
+          status: 'published', publishedAt,
           tweetUrl: null, tweetError: null,
           republishedFrom: keyword,
           reusedFeaturedMedia: original.featuredMedia ?? null,
-        });
+          // Kbuzz/Shorts 호환 필드
+          kbuzzUrl: newWpUrl,
+          kbuzzTitle: regen.title,
+          kbuzzPostId: newPostId,
+          kbuzzPublishedAt: publishedAt,
+          kbuzzStatus: 'published',
+        }, { merge: true });
 
         results.push({ originalKeyword: keyword, newTitle: regen.title, newPostId, newWpUrl, success: true });
         console.log(`[republish] 성공: ${keyword} → ${regen.title}`);
