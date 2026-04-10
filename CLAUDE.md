@@ -11,3 +11,10 @@
 - 컴포넌트: src/components/trend/ShortsGenerator.tsx
 - 생성 내용: 스크립트 / 설명문 / 해시태그 (Claude API 스트리밍)
 - UI: 발행된 글 카드 그리드 → "🎬 Shorts 생성" 버튼 → 3개 탭 (📝 스크립트 / 📄 설명문 / #️⃣ 해시태그) → 탭별 복사 버튼
+
+### 자동 발행 주말 스킵 (2026-04 추가)
+- 토요일(6) / 일요일(0) KST 기준 자동 발행 스킵
+- 적용 API: /api/trend/auto-publish, /api/trend/auto-publish-image
+- Cron은 유지, API 내부에서 early return 처리
+- vercel.json 변경 없음
+- 응답: { success: false, message: '주말에는 자동 발행이 실행되지 않습니다.', day: '토요일'|'일요일' } (status 200)

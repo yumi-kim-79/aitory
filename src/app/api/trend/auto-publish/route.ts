@@ -554,6 +554,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // KST 기준 주말(토/일) 스킵
+  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const dayOfWeek = kstNow.getUTCDay(); // 0: 일, 6: 토
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    const dayName = dayOfWeek === 0 ? '일요일' : '토요일';
+    console.log(`[auto-publish] 주말(${dayName}) 스킵`);
+    return NextResponse.json({
+      success: false,
+      message: '주말에는 자동 발행이 실행되지 않습니다.',
+      day: dayName,
+    }, { status: 200 });
+  }
+
   const results: PublishResult[] = [];
   _dupCache = null; // 캐시 초기화
 
