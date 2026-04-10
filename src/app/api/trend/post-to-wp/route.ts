@@ -1,5 +1,6 @@
 import { verifyToken } from "@/lib/middleware";
 import { getUserDoc } from "@/lib/auth";
+import { adminDb } from "@/lib/firebase-admin";
 
 export const maxDuration = 60;
 
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
     }
 
-    const { title, content, excerpt, slug, status, tags, category, imageUrl, imageAlt } = (await request.json()) as {
+    const { title, content, excerpt, slug, status, tags, category, imageUrl, imageAlt, keyword } = (await request.json()) as {
       title: string;
       content: string;
       excerpt: string;
@@ -118,6 +119,7 @@ export async function POST(request: Request) {
       category?: string;
       imageUrl?: string;
       imageAlt?: string;
+      keyword?: string;
     };
 
     const wpUrl = process.env.WP_SITE_URL;
@@ -216,6 +218,28 @@ export async function POST(request: Request) {
     let wpData;
     try { wpData = JSON.parse(responseText); }
     catch { return Response.json({ error: "WordPress 응답 파싱 실패" }, { status: 502 }); }
+
+    // Firestore aitory_published_keywords에 발행 정보 저장 (발행 status === 'publish'인 경우만)
+    if (wpData.status === "publish" && wpData.id) {
+      try {
+        const docId = `kbuzz_${wpData.id}`;
+        await adminDb.collection("aitory_published_keywords").doc(docId).set({
+          keyword: keyword || "",
+          category: category || "",
+          metaDesc: safeExcerpt,
+          kbuzzUrl: wpData.link,
+          kbuzzTitle: wpData.title?.rendered || title,
+          kbuzzPostId: wpData.id,
+          kbuzzPublishedAt: new Date(),
+          kbuzzStatus: "published",
+          publishedAt: new Date(),
+          source: "manual",
+        }, { merge: true });
+        console.log(`[wp] Firestore 저장 성공: ${docId}`);
+      } catch (fsErr) {
+        console.error("[wp] Firestore 저장 실패:", fsErr instanceof Error ? fsErr.message : fsErr);
+      }
+    }
 
     return Response.json({
       ok: true,

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import ShortsGenerator from "@/components/trend/ShortsGenerator";
 
 type MainTab = "trends" | "content" | "blog" | "kbuzz" | "auto";
 
@@ -147,7 +148,7 @@ export default function TrendPage() {
     setPublishing(true); setPublishError("");
     try {
       const token = await getIdToken();
-      const res = await fetch("/api/trend/post-to-wp", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ title: blogPost.title, content: blogPost.content, excerpt: blogPost.excerpt, slug: blogPost.slug, status: publishStatus, tags: blogPost.tags, category: blogPost.category }) });
+      const res = await fetch("/api/trend/post-to-wp", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ title: blogPost.title, content: blogPost.content, excerpt: blogPost.excerpt, slug: blogPost.slug, status: publishStatus, tags: blogPost.tags, category: blogPost.category, keyword: selectedKeyword || "" }) });
       const data = await res.json();
       if (data.ok) setPublishResult({ postUrl: data.postUrl, status: data.status });
       else setPublishError(data.error || "발행 실패");
@@ -668,6 +669,9 @@ export default function TrendPage() {
             )}
           </div>
         )}
+
+        {/* Shorts 콘텐츠 생성 (관리자 전용, 모든 탭에서 표시) */}
+        {isAdmin && <ShortsGenerator />}
       </div>
     </div>
   );
