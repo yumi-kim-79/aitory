@@ -30,7 +30,10 @@ export async function POST(request: Request) {
     const timeout = setTimeout(() => controller.abort(), 240000);
 
     const res = await fetch(targetUrl, {
-      headers: { Authorization: `Bearer ${cronSecret}` },
+      headers: {
+        Authorization: `Bearer ${cronSecret}`,
+        'x-manual-trigger': 'true',
+      },
       signal: controller.signal,
     });
     clearTimeout(timeout);

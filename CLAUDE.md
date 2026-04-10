@@ -18,3 +18,15 @@
 - Cron은 유지, API 내부에서 early return 처리
 - vercel.json 변경 없음
 - 응답: { success: false, message: '주말에는 자동 발행이 실행되지 않습니다.', day: '토요일'|'일요일' } (status 200)
+
+### 주말 스킵 우회 - 수동 트리거 (2026-04 수정)
+- Cron(GET)만 주말 스킵, 수동(trigger-publish POST)은 우회
+- 수동 호출은 trigger-publish/trigger-publish-image가 내부 fetch 시 헤더 추가:
+  - `x-manual-trigger: true`
+- auto-publish/auto-publish-image GET 핸들러에서 위 헤더 감지 시 주말 체크 skip
+- 평일/주말 모두 관리자 수동 발행 항상 가능
+- 동작 매트릭스:
+  | 호출 경로  | 평일 | 주말 |
+  |-----------|------|------|
+  | Cron 자동 | 발행 | 스킵 |
+  | 수동 버튼 | 발행 | 발행 |
