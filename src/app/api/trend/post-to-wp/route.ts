@@ -1,7 +1,7 @@
 import { verifyToken } from "@/lib/middleware";
 import { getUserDoc } from "@/lib/auth";
 import { adminDb } from "@/lib/firebase-admin";
-import { postToTwitter } from "@/app/api/trend/post-to-twitter/route";
+import { postToTwitter } from "@/lib/twitter";
 
 export const maxDuration = 60;
 
@@ -243,19 +243,31 @@ export async function POST(request: Request) {
     }
 
     // X(트위터) 자동 포스팅 (발행 status === 'publish'인 경우만, 실패해도 블로그 발행 유지)
-    let tweetResult: { success: boolean; tweetUrl?: string; error?: string } = { success: false };
+    let tweetUrl: string | null = null;
+    let tweetError: string | null = null;
     if (wpData.status === "publish" && wpData.link) {
+      const docId = `kbuzz_${wpData.id}`;
       try {
-        tweetResult = await postToTwitter({
+        console.log("[Twitter] 포스팅 시도:", title);
+        const result = await postToTwitter({
           title: wpData.title?.rendered || title,
           kbuzzUrl: wpData.link,
           keyword: keyword || "",
           category: category || "",
           metaDesc: safeExcerpt,
-          firestoreDocId: `kbuzz_${wpData.id}`,
         });
-      } catch (tweetErr) {
-        console.error("[wp] 트위터 포스팅 실패 (블로그 발행 유지):", tweetErr instanceof Error ? tweetErr.message : tweetErr);
+        tweetUrl = result.tweetUrl;
+        // Firestore tweetUrl 업데이트
+        await adminDb.collection("aitory_published_keywords").doc(docId).set({
+          tweetUrl, tweetError: null, tweetedAt: new Date(),
+        }, { merge: true });
+        console.log("[Twitter] 포스팅 완료:", tweetUrl);
+      } catch (err) {
+        tweetError = err instanceof Error ? err.message : String(err);
+        console.error("[Twitter] 포스팅 실패:", tweetError);
+        await adminDb.collection("aitory_published_keywords").doc(docId).set({
+          tweetUrl: null, tweetError,
+        }, { merge: true }).catch(() => {});
       }
     }
 
@@ -264,8 +276,8 @@ export async function POST(request: Request) {
       postId: wpData.id,
       postUrl: wpData.link,
       status: wpData.status,
-      tweetUrl: tweetResult.tweetUrl || null,
-      tweetError: tweetResult.error || null,
+      tweetUrl,
+      tweetError,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 오류";

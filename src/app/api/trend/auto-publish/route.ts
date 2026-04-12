@@ -5,7 +5,7 @@ import { generateLongtailContent } from '@/lib/longtail-title';
 import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd, ensureAiImageNotice } from '@/lib/seo-aeo';
 import { requestIndexing } from '@/lib/google-indexing';
 import { appendPhotoSuffix } from '@/lib/dalle-photo-prompt';
-import { postToTwitter } from '@/app/api/trend/post-to-twitter/route';
+import { postToTwitter } from '@/lib/twitter';
 
 export const maxDuration = 300;
 
@@ -716,14 +716,23 @@ export async function GET(req: NextRequest) {
             // 8. X(트위터) 자동 포스팅 (실패해도 진행)
             let tweetUrl: string | undefined;
             try {
+              console.log(`[Twitter] 포스팅 시도: ${finalTitle}`);
               const tweetResult = await postToTwitter({
                 title: finalTitle, kbuzzUrl: wpUrl,
                 keyword, category, metaDesc: finalMetaDesc,
-                firestoreDocId: `kbuzz_${postId}`,
               });
-              if (tweetResult.success) tweetUrl = tweetResult.tweetUrl;
+              tweetUrl = tweetResult.tweetUrl;
+              // Firestore tweetUrl 업데이트
+              await adminDb.collection('aitory_published_keywords').doc(`kbuzz_${postId}`).set({
+                tweetUrl, tweetError: null, tweetedAt: new Date(),
+              }, { merge: true });
+              console.log(`[Twitter] 포스팅 완료: ${tweetUrl}`);
             } catch (tweetErr) {
-              console.error(`[auto-publish] 트위터 실패 (계속 진행): ${keyword}`, tweetErr instanceof Error ? tweetErr.message : tweetErr);
+              const tweetError = tweetErr instanceof Error ? tweetErr.message : String(tweetErr);
+              console.error(`[Twitter] 포스팅 실패:`, tweetError);
+              await adminDb.collection('aitory_published_keywords').doc(`kbuzz_${postId}`).set({
+                tweetUrl: null, tweetError,
+              }, { merge: true }).catch(() => {});
             }
 
             return { keyword, category, postId, wpUrl, title: finalTitle, indexed, tweetUrl };
