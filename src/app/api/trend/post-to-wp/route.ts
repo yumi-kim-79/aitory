@@ -220,8 +220,8 @@ export async function POST(request: Request) {
     try { wpData = JSON.parse(responseText); }
     catch { return Response.json({ error: "WordPress 응답 파싱 실패" }, { status: 502 }); }
 
-    // Firestore aitory_published_keywords에 발행 정보 저장 (발행 status === 'publish'인 경우만)
-    if (wpData.status === "publish" && wpData.id) {
+    // Firestore aitory_published_keywords에 발행 정보 저장 (draft/publish 모두)
+    if (wpData.id) {
       try {
         const docId = `kbuzz_${wpData.id}`;
         await adminDb.collection("aitory_published_keywords").doc(docId).set({
@@ -232,7 +232,7 @@ export async function POST(request: Request) {
           kbuzzTitle: wpData.title?.rendered || title,
           kbuzzPostId: wpData.id,
           kbuzzPublishedAt: new Date(),
-          kbuzzStatus: "published",
+          kbuzzStatus: wpData.status === "publish" ? "published" : wpData.status,
           publishedAt: new Date(),
           source: "manual",
         }, { merge: true });
@@ -242,13 +242,15 @@ export async function POST(request: Request) {
       }
     }
 
-    // X(트위터) 자동 포스팅 (발행 status === 'publish'인 경우만, 실패해도 블로그 발행 유지)
+    // X(트위터) 자동 포스팅 (실패해도 블로그 발행 유지)
     let tweetUrl: string | null = null;
     let tweetError: string | null = null;
-    if (wpData.status === "publish" && wpData.link) {
+    console.log("[wp] 트위터 포스팅 조건:", { wpStatus: wpData.status, hasLink: !!wpData.link, wpId: wpData.id });
+    if (wpData.link && wpData.id) {
+      // draft/publish 모두 트위터 포스팅 시도 (URL 있으면)
       const docId = `kbuzz_${wpData.id}`;
       try {
-        console.log("[Twitter] 포스팅 시도:", title);
+        console.log("[Twitter] 포스팅 시도 시작:", title);
         const result = await postToTwitter({
           title: wpData.title?.rendered || title,
           kbuzzUrl: wpData.link,
