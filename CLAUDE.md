@@ -20,6 +20,15 @@
 - status 필드: 'draft' → 'published'
 - 마이그레이션: scripts/update-kbuzz-status.mjs (기존 wpUrl 있는 문서 일괄 업데이트)
 
+### X(트위터) 자동 포스팅 (2026-04 추가)
+- 패키지: twitter-api-v2
+- API: POST /api/trend/post-to-twitter (관리자 인증, Claude로 트윗 텍스트 생성)
+- 환경변수: TWITTER_API_KEY/SECRET/ACCESS_TOKEN/ACCESS_TOKEN_SECRET (fallback: X_API_KEY/...)
+- 트리거: post-to-wp 발행 성공 후 자동 호출, auto-publish 각 글 성공 후 자동 호출
+- Firestore: tweetUrl, tweetError, tweetedAt 필드 업데이트
+- 실패해도 블로그 발행 영향 없음 (graceful)
+- 공통 함수 postToTwitter() export하여 내부/외부 모두 사용
+
 ### 자동 발행 주말 스킵 (2026-04 추가)
 - 토요일(6) / 일요일(0) KST 기준 자동 발행 스킵
 - 적용 API: /api/trend/auto-publish, /api/trend/auto-publish-image

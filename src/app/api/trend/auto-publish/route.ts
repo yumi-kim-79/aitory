@@ -5,6 +5,7 @@ import { generateLongtailContent } from '@/lib/longtail-title';
 import { buildSummaryBox, buildFaqSection, buildArticleJsonLd, safeExcerpt, appendJsonLd, ensureAiImageNotice } from '@/lib/seo-aeo';
 import { requestIndexing } from '@/lib/google-indexing';
 import { appendPhotoSuffix } from '@/lib/dalle-photo-prompt';
+import { postToTwitter } from '@/app/api/trend/post-to-twitter/route';
 
 export const maxDuration = 300;
 
@@ -712,7 +713,20 @@ export async function GET(req: NextRequest) {
             const indexResult = await requestIndexing(wpUrl);
             const indexed = indexResult.success;
 
-            return { keyword, category, postId, wpUrl, title: finalTitle, indexed };
+            // 8. X(트위터) 자동 포스팅 (실패해도 진행)
+            let tweetUrl: string | undefined;
+            try {
+              const tweetResult = await postToTwitter({
+                title: finalTitle, kbuzzUrl: wpUrl,
+                keyword, category, metaDesc: finalMetaDesc,
+                firestoreDocId: `kbuzz_${postId}`,
+              });
+              if (tweetResult.success) tweetUrl = tweetResult.tweetUrl;
+            } catch (tweetErr) {
+              console.error(`[auto-publish] 트위터 실패 (계속 진행): ${keyword}`, tweetErr instanceof Error ? tweetErr.message : tweetErr);
+            }
+
+            return { keyword, category, postId, wpUrl, title: finalTitle, indexed, tweetUrl };
           })(),
           90000,
           keyword
@@ -726,8 +740,9 @@ export async function GET(req: NextRequest) {
           keyword: s.value.keyword, category: s.value.category, success: true,
           wpUrl: s.value.wpUrl, title: s.value.title,
           seoApplied: true, indexed: s.value.indexed,
+          tweetUrl: s.value.tweetUrl,
         });
-        console.log(`[auto-publish v3] 성공: ${s.value.keyword} → ${s.value.title} (indexed=${s.value.indexed})`);
+        console.log(`[auto-publish v3] 성공: ${s.value.keyword} → ${s.value.title} (indexed=${s.value.indexed}, tweet=${!!s.value.tweetUrl})`);
       } else {
         const msg = s.reason instanceof Error ? s.reason.message : String(s.reason);
         results.push({ keyword: '(에러)', category: '', success: false, error: msg });

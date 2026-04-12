@@ -49,7 +49,7 @@ export default function TrendPage() {
   const [blogPost, setBlogPost] = useState<BlogPost | null>(null);
   const [loadingBlog, setLoadingBlog] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [publishResult, setPublishResult] = useState<{ postUrl: string; status: string } | null>(null);
+  const [publishResult, setPublishResult] = useState<{ postUrl: string; status: string; tweetUrl?: string; tweetError?: string } | null>(null);
   const [publishError, setPublishError] = useState("");
   const [publishStatus, setPublishStatus] = useState<"draft" | "publish">("draft");
   const [apiError, setApiError] = useState("");
@@ -150,7 +150,7 @@ export default function TrendPage() {
       const token = await getIdToken();
       const res = await fetch("/api/trend/post-to-wp", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ title: blogPost.title, content: blogPost.content, excerpt: blogPost.excerpt, slug: blogPost.slug, status: publishStatus, tags: blogPost.tags, category: blogPost.category, keyword: selectedKeyword || "" }) });
       const data = await res.json();
-      if (data.ok) setPublishResult({ postUrl: data.postUrl, status: data.status });
+      if (data.ok) setPublishResult({ postUrl: data.postUrl, status: data.status, tweetUrl: data.tweetUrl, tweetError: data.tweetError });
       else setPublishError(data.error || "발행 실패");
     } catch (e) { setPublishError(e instanceof Error ? e.message : "발행 실패"); }
     finally { setPublishing(false); }
@@ -245,7 +245,7 @@ export default function TrendPage() {
         </div>
       )}
       {isAdmin && publishError && <div className="p-4 bg-red-50 rounded-xl border border-red-200"><p className="text-sm text-red-700">{publishError}</p></div>}
-      {isAdmin && publishResult && <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200"><p className="text-sm font-medium text-emerald-800 mb-1">발행 완료! ({publishResult.status})</p><a href={publishResult.postUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline">{publishResult.postUrl}</a></div>}
+      {isAdmin && publishResult && <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200"><p className="text-sm font-medium text-emerald-800 mb-1">발행 완료! ({publishResult.status})</p><a href={publishResult.postUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline">{publishResult.postUrl}</a>{publishResult.tweetUrl && <p className="text-xs text-sky-600 mt-1"><a href={publishResult.tweetUrl} target="_blank" rel="noopener noreferrer" className="underline">🐦 X 포스팅 완료</a></p>}{publishResult.tweetError && <p className="text-xs text-amber-600 mt-1">⚠️ X 포스팅 실패: {publishResult.tweetError}</p>}</div>}
     </div>
   ) : null;
 

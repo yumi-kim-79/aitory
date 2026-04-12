@@ -1,6 +1,7 @@
 import { verifyToken } from "@/lib/middleware";
 import { getUserDoc } from "@/lib/auth";
 import { adminDb } from "@/lib/firebase-admin";
+import { postToTwitter } from "@/app/api/trend/post-to-twitter/route";
 
 export const maxDuration = 60;
 
@@ -241,11 +242,30 @@ export async function POST(request: Request) {
       }
     }
 
+    // X(트위터) 자동 포스팅 (발행 status === 'publish'인 경우만, 실패해도 블로그 발행 유지)
+    let tweetResult: { success: boolean; tweetUrl?: string; error?: string } = { success: false };
+    if (wpData.status === "publish" && wpData.link) {
+      try {
+        tweetResult = await postToTwitter({
+          title: wpData.title?.rendered || title,
+          kbuzzUrl: wpData.link,
+          keyword: keyword || "",
+          category: category || "",
+          metaDesc: safeExcerpt,
+          firestoreDocId: `kbuzz_${wpData.id}`,
+        });
+      } catch (tweetErr) {
+        console.error("[wp] 트위터 포스팅 실패 (블로그 발행 유지):", tweetErr instanceof Error ? tweetErr.message : tweetErr);
+      }
+    }
+
     return Response.json({
       ok: true,
       postId: wpData.id,
       postUrl: wpData.link,
       status: wpData.status,
+      tweetUrl: tweetResult.tweetUrl || null,
+      tweetError: tweetResult.error || null,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "알 수 없는 오류";
