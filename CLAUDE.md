@@ -45,7 +45,7 @@
 
 ### RSS → X 자동 포스팅 Cron (2026-04 추가)
 - API: GET /api/cron/rss-twitter
-- Cron: 10분마다 (*/10 * * * *)
+- Cron: 매일 KST 09:00 (0 0 * * * UTC)
 - RSS: https://groove0926.mycafe24.com/feed/
 - Firestore: aitory_rss_posted 컬렉션 (link 기반 doc ID)
 - 새 글 최대 3개/회 포스팅, 3초 딜레이
