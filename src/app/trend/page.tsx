@@ -74,6 +74,7 @@ export default function TrendPage() {
   const [bulkTweeting, setBulkTweeting] = useState(false);
   const [bulkTweetLog, setBulkTweetLog] = useState("");
   const [bulkTweetPending, setBulkTweetPending] = useState<number | null>(null);
+  const [twitterTestResult, setTwitterTestResult] = useState("");
 
   const [copied, setCopied] = useState("");
 
@@ -713,6 +714,28 @@ export default function TrendPage() {
               {bulkTweetLog && (
                 <pre className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 whitespace-pre-wrap max-h-60 overflow-y-auto">{bulkTweetLog}</pre>
               )}
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    setTwitterTestResult("테스트 중...");
+                    try {
+                      const token = await getIdToken(true);
+                      if (!token) { setTwitterTestResult("인증 실패"); return; }
+                      const res = await fetch("/api/admin/test-twitter", { headers: { Authorization: `Bearer ${token}` } });
+                      const data = await res.json();
+                      if (data.success) {
+                        setTwitterTestResult(`✅ 트윗 성공: ${data.tweetUrl}\nenv: ${JSON.stringify(data.envInfo)}`);
+                      } else {
+                        setTwitterTestResult(`❌ 에러: ${data.error}${data.code ? ` (code: ${data.code})` : ''}\nenv: ${JSON.stringify(data.envInfo)}${data.data ? `\ndata: ${JSON.stringify(data.data)}` : ''}`);
+                      }
+                    } catch (e) { setTwitterTestResult(`❌ 호출 실패: ${e instanceof Error ? e.message : String(e)}`); }
+                  }}
+                  className="px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg text-xs hover:bg-slate-300"
+                >
+                  🧪 X API 테스트
+                </button>
+                {twitterTestResult && <pre className="flex-1 text-xs text-slate-600 whitespace-pre-wrap">{twitterTestResult}</pre>}
+              </div>
             </div>
 
             {autoResults.length > 0 && (
