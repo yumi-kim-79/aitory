@@ -71,6 +71,10 @@ export default function TrendPage() {
   const seoStopRef = useRef(false);
   const [autoResults, setAutoResults] = useState<{ keyword: string; ok?: boolean; success?: boolean; postUrl?: string; wpUrl?: string; tweetUrl?: string; tweetError?: string; indexed?: boolean; title?: string; error?: string }[]>([]);
 
+  const [bulkTweeting, setBulkTweeting] = useState(false);
+  const [bulkTweetLog, setBulkTweetLog] = useState("");
+  const [bulkTweetPending, setBulkTweetPending] = useState<number | null>(null);
+
   const [copied, setCopied] = useState("");
 
   const fetchTrends = useCallback(async () => {
@@ -642,6 +646,64 @@ export default function TrendPage() {
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* 기존 글 X 일괄 포스팅 */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mt-4">
+              <h3 className="text-sm font-bold text-slate-900 mb-3">📤 기존 글 X 일괄 포스팅</h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      const token = await getIdToken(true);
+                      if (!token) return;
+                      const res = await fetch("/api/admin/bulk-tweet-existing", {
+                        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ dryRun: true }),
+                      });
+                      const data = await res.json();
+                      setBulkTweetPending(data.pending ?? 0);
+                      setBulkTweetLog(`전체 ${data.total ?? 0}개 / 이미 포스팅 ${data.alreadyPosted ?? 0}개 / 대상 ${data.pending ?? 0}개`);
+                    } catch (e) { setBulkTweetLog(`조회 실패: ${e instanceof Error ? e.message : String(e)}`); }
+                  }}
+                  disabled={bulkTweeting}
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs hover:bg-slate-200 disabled:opacity-50"
+                >
+                  🔍 대상 확인
+                </button>
+                <button
+                  onClick={async () => {
+                    setBulkTweeting(true); setBulkTweetLog("시작...\n");
+                    try {
+                      const token = await getIdToken(true);
+                      if (!token) { setBulkTweetLog("인증 실패"); setBulkTweeting(false); return; }
+                      const res = await fetch("/api/admin/bulk-tweet-existing", {
+                        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ dryRun: false }),
+                        signal: AbortSignal.timeout(290000),
+                      });
+                      if (!res.body) { setBulkTweetLog("스트림 없음"); setBulkTweeting(false); return; }
+                      const reader = res.body.getReader();
+                      const decoder = new TextDecoder();
+                      let acc = "";
+                      while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        acc += decoder.decode(value, { stream: true });
+                        setBulkTweetLog(acc);
+                      }
+                    } catch (e) { setBulkTweetLog((prev) => prev + `\n에러: ${e instanceof Error ? e.message : String(e)}`); }
+                    finally { setBulkTweeting(false); }
+                  }}
+                  disabled={bulkTweeting || bulkTweetPending === 0}
+                  className="px-4 py-2 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600 disabled:bg-slate-300 disabled:cursor-not-allowed"
+                >
+                  {bulkTweeting ? "포스팅 중..." : `🚀 실행 (${bulkTweetPending ?? "?"}개)`}
+                </button>
+              </div>
+              {bulkTweetLog && (
+                <pre className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 whitespace-pre-wrap max-h-60 overflow-y-auto">{bulkTweetLog}</pre>
+              )}
             </div>
 
             {autoResults.length > 0 && (

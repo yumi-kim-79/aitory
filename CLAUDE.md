@@ -43,6 +43,23 @@
 - 중복 방지: tweetUrl 이미 있으면 스킵
 - 타임아웃: 15초 Promise.race
 
+### RSS → X 자동 포스팅 Cron (2026-04 추가)
+- API: GET /api/cron/rss-twitter
+- Cron: 10분마다 (*/10 * * * *)
+- RSS: https://groove0926.mycafe24.com/feed/
+- Firestore: aitory_rss_posted 컬렉션 (link 기반 doc ID)
+- 새 글 최대 3개/회 포스팅, 3초 딜레이
+- 주말(토/일) KST 스킵
+- 패키지: xml2js (RSS 파싱)
+
+### 기존 글 X 일괄 포스팅 (2026-04 추가)
+- API: POST /api/admin/bulk-tweet-existing (관리자 전용, 스트리밍)
+- WP REST API로 발행 글 전체 조회 → aitory_rss_posted 미포스팅 필터 → 순차 트윗
+- dryRun 모드로 대상 확인 가능
+- 3초 딜레이 (rate limit), rate limit(429) 감지 시 자동 중단
+- source: 'bulk'로 Firestore 저장
+- /trend 페이지 관리자 섹션에 UI 버튼
+
 ### 자동 발행 주말 스킵 (2026-04 추가)
 - 토요일(6) / 일요일(0) KST 기준 자동 발행 스킵
 - 적용 API: /api/trend/auto-publish, /api/trend/auto-publish-image
