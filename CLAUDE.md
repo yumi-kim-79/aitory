@@ -32,6 +32,17 @@
 - 실패해도 블로그 발행 영향 없음 (graceful)
 - 중복 포스팅 방지: tweetUrl 이미 URL값 있으면 스킵
 
+### WordPress → X 자동 포스팅 웹훅 (2026-04 추가)
+- API: POST /api/webhook/wordpress-publish
+- 인증: WEBHOOK_SECRET 환경변수 (body.secret 검증)
+- WordPress 플러그인: scripts/wordpress-webhook-plugin.php
+- 동작: WordPress 발행(transition_post_status) → 웹훅 → postToTwitter() → X 자동 포스팅
+- Firestore: kbuzz_${postId} 문서에 tweetUrl/tweetError/tweetedAt 업데이트
+- 외부 발행 글(Aitory 외부): source='wordpress-webhook'으로 신규 문서 자동 생성
+- 비동기: wp_remote_post blocking=false (WordPress 발행 속도 영향 없음)
+- 중복 방지: tweetUrl 이미 있으면 스킵
+- 타임아웃: 15초 Promise.race
+
 ### 자동 발행 주말 스킵 (2026-04 추가)
 - 토요일(6) / 일요일(0) KST 기준 자동 발행 스킵
 - 적용 API: /api/trend/auto-publish, /api/trend/auto-publish-image
