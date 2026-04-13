@@ -60,6 +60,11 @@
 - source: 'bulk'로 Firestore 저장
 - /trend 페이지 관리자 섹션에 UI 버튼
 
+### 기존 글 X 일괄 포스팅 UI 버그 수정 (2026-04)
+- 문제: API 200 성공이지만 UI에서 이전 401 에러 계속 표시
+- 원인: 대상 확인/실행 클릭 시 이전 결과 상태 미초기화
+- 수정: 버튼 클릭 즉시 setBulkTweetLog 초기화, res.ok 체크 추가
+
 ### 자동 발행 주말 스킵 (2026-04 추가)
 - 토요일(6) / 일요일(0) KST 기준 자동 발행 스킵
 - 적용 API: /api/trend/auto-publish, /api/trend/auto-publish-image

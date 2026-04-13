@@ -654,13 +654,17 @@ export default function TrendPage() {
               <div className="flex gap-2">
                 <button
                   onClick={async () => {
+                    setBulkTweetLog("조회 중...");
+                    setBulkTweetPending(null);
                     try {
                       const token = await getIdToken(true);
-                      if (!token) return;
+                      if (!token) { setBulkTweetLog("인증 실패"); return; }
                       const res = await fetch("/api/admin/bulk-tweet-existing", {
                         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                         body: JSON.stringify({ dryRun: true }),
+                        signal: AbortSignal.timeout(30000),
                       });
+                      if (!res.ok) { setBulkTweetLog(`API 에러: HTTP ${res.status}`); return; }
                       const data = await res.json();
                       setBulkTweetPending(data.pending ?? 0);
                       setBulkTweetLog(`전체 ${data.total ?? 0}개 / 이미 포스팅 ${data.alreadyPosted ?? 0}개 / 대상 ${data.pending ?? 0}개`);
@@ -673,7 +677,8 @@ export default function TrendPage() {
                 </button>
                 <button
                   onClick={async () => {
-                    setBulkTweeting(true); setBulkTweetLog("시작...\n");
+                    setBulkTweeting(true);
+                    setBulkTweetLog("시작...\n");
                     try {
                       const token = await getIdToken(true);
                       if (!token) { setBulkTweetLog("인증 실패"); setBulkTweeting(false); return; }
@@ -682,6 +687,7 @@ export default function TrendPage() {
                         body: JSON.stringify({ dryRun: false }),
                         signal: AbortSignal.timeout(290000),
                       });
+                      if (!res.ok) { setBulkTweetLog(`API 에러: HTTP ${res.status}`); setBulkTweeting(false); return; }
                       if (!res.body) { setBulkTweetLog("스트림 없음"); setBulkTweeting(false); return; }
                       const reader = res.body.getReader();
                       const decoder = new TextDecoder();
@@ -692,7 +698,10 @@ export default function TrendPage() {
                         acc += decoder.decode(value, { stream: true });
                         setBulkTweetLog(acc);
                       }
-                    } catch (e) { setBulkTweetLog((prev) => prev + `\n에러: ${e instanceof Error ? e.message : String(e)}`); }
+                    } catch (e) {
+                      const msg = e instanceof Error ? e.message : String(e);
+                      setBulkTweetLog((prev) => `${prev}\n❌ 에러: ${msg}`);
+                    }
                     finally { setBulkTweeting(false); }
                   }}
                   disabled={bulkTweeting || bulkTweetPending === 0}
