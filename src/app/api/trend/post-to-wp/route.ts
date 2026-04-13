@@ -247,17 +247,29 @@ export async function POST(request: Request) {
     let tweetError: string | null = null;
     console.log("[wp] 트위터 포스팅 조건:", { wpStatus: wpData.status, hasLink: !!wpData.link, wpId: wpData.id });
     if (wpData.link && wpData.id) {
-      // draft/publish 모두 트위터 포스팅 시도 (URL 있으면)
       const docId = `kbuzz_${wpData.id}`;
+      // 중복 포스팅 방지: 이미 tweetUrl 있으면 스킵
+      let skipTweet = false;
       try {
+        const existDoc = await adminDb.collection("aitory_published_keywords").doc(docId).get();
+        const existTweet = existDoc.data()?.tweetUrl;
+        if (existTweet && typeof existTweet === "string" && existTweet.startsWith("http")) {
+          console.log("[Twitter] 이미 포스팅됨, 스킵:", existTweet);
+          tweetUrl = existTweet;
+          skipTweet = true;
+        }
+      } catch {}
+      if (!skipTweet) try {
         console.log("[Twitter] 포스팅 시도 시작:", title);
-        const result = await postToTwitter({
-          title: wpData.title?.rendered || title,
-          kbuzzUrl: wpData.link,
-          keyword: keyword || "",
-          category: category || "",
-          metaDesc: safeExcerpt,
-        });
+        const result = await Promise.race([
+          postToTwitter({
+            title: wpData.title?.rendered || title,
+            kbuzzUrl: wpData.link,
+            keyword: keyword || "",
+            category: category || "",
+          }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Twitter timeout 15초')), 15000)),
+        ]);
         tweetUrl = result.tweetUrl;
         // Firestore tweetUrl 업데이트
         await adminDb.collection("aitory_published_keywords").doc(docId).set({

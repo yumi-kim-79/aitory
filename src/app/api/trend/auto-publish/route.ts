@@ -717,10 +717,13 @@ export async function GET(req: NextRequest) {
             let tweetUrl: string | undefined;
             try {
               console.log(`[Twitter] 포스팅 시도: ${finalTitle}`);
-              const tweetResult = await postToTwitter({
-                title: finalTitle, kbuzzUrl: wpUrl,
-                keyword, category, metaDesc: finalMetaDesc,
-              });
+              const tweetResult = await Promise.race([
+                postToTwitter({
+                  title: finalTitle, kbuzzUrl: wpUrl,
+                  keyword, category,
+                }),
+                new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Twitter timeout 15초')), 15000)),
+              ]);
               tweetUrl = tweetResult.tweetUrl;
               // Firestore tweetUrl 업데이트
               await adminDb.collection('aitory_published_keywords').doc(`kbuzz_${postId}`).set({

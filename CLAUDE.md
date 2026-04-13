@@ -25,8 +25,9 @@
 - 유틸: src/lib/twitter.ts (postToTwitter 함수)
 - API: POST /api/trend/post-to-twitter (관리자 인증, 중복 포스팅 방지)
 - 환경변수: X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET
-- Claude API 직접 호출 (claude-sonnet-4-5)로 트윗 텍스트 생성
+- 트윗 생성: 템플릿 방식 (카테고리별 이모지 + 제목 + URL + 해시태그), Claude API 미사용
 - 트리거: post-to-wp 발행 성공 후 자동 호출, auto-publish 각 글 성공 후 자동 호출
+- 타임아웃: Promise.race 15초 제한
 - Firestore: tweetUrl, tweetError, tweetedAt 필드 업데이트
 - 실패해도 블로그 발행 영향 없음 (graceful)
 - 중복 포스팅 방지: tweetUrl 이미 URL값 있으면 스킵
