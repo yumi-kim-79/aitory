@@ -108,6 +108,8 @@ ${newsTitles ? `뉴스:\n${newsTitles}\n` : ""}위 키워드/뉴스로 SEO 최�
       });
 
       const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+      console.log('=== Claude Raw Response ===');
+      console.log(responseText.substring(0, 500));
       let result;
       try {
         const jsonStr = extractJSON(responseText);
@@ -116,6 +118,16 @@ ${newsTitles ? `뉴스:\n${newsTitles}\n` : ""}위 키워드/뉴스로 SEO 최�
         console.error("[generate/blog] JSON 파싱 실패:", responseText.slice(0, 500));
         return Response.json({ error: "AI 응답 처리 실패. 다시 시도해주세요. (크레딧 미차감)" }, { status: 502 });
       }
+      console.log('=== Parsed Result ===');
+      console.log(JSON.stringify({
+        hasMetaDescription: !!result.metaDescription,
+        metaDescriptionLength: result.metaDescription?.length || 0,
+        hasFocusKeyphrase: !!result.focusKeyphrase,
+        hasUrlSlug: !!result.urlSlug,
+        hasOgDescription: !!result.ogDescription,
+        hasTags: Array.isArray(result.tags),
+        tagsCount: result.tags?.length || 0,
+      }, null, 2));
       if (result.error) return Response.json({ error: result.error }, { status: 400 });
 
       // metaDescription 150자 truncate + excerpt 백워드 호환 alias
@@ -143,6 +155,13 @@ ${newsTitles ? `뉴스:\n${newsTitles}\n` : ""}위 키워드/뉴스로 SEO 최�
       }
 
       await useCredits(decoded.userId, credits, isKbuzz ? "Kbuzz 블로그 생성" : "AI 블로그 글 생성");
+      console.log('=== Final Response to Client ===');
+      console.log(JSON.stringify({
+        metaDescription: result.metaDescription?.substring(0, 100),
+        focusKeyphrase: result.focusKeyphrase,
+        urlSlug: result.urlSlug,
+        tagsCount: result.tags?.length,
+      }, null, 2));
       return Response.json(result);
     }
 
