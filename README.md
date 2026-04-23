@@ -57,12 +57,10 @@ AI가 당신의 업무를 대신하는 플랫폼
 ### Kbuzz 자동발행 고도화 로드맵
 - ✅ 1단계: 글 품질 개선 (뉴스 10개×500자, 2000자+, 소제목 4개+)
 - ✅ 2단계: 연관 키워드 확장 (롱테일 1개 추가, 총 11개), 인기글 재발행
+- ✅ V3: SEO+AEO 자동화 완료 (Meta Description, Focus Keyphrase, URL Slug, Open Graph, FAQ, JSON-LD, Google 색인)
 - 🔲 3단계 (진행 예정):
-  - Google Search Console 색인 자동화 (Google Indexing API + 서비스 계정)
+  - ~~DALL-E 이미지 자동 생성~~ (제거 - 이미지는 수동 업로드)
   - 네이버 서치어드바이저 등록 (searchadvisor.naver.com)
-  - SEO 최적화 - 제목 롱테일 키워드 타겟팅
-  - AEO(Answer Engine Optimization) - AI 검색 최적화
-  - 글 제목 최적화 자동화
   - Facebook/Instagram SNS 연동 (페이지 생성 제한 해제 후)
   - X(트위터) 연동 (크레딧 충전 후)
 - 🔲 4단계 (장기):
@@ -73,7 +71,7 @@ AI가 당신의 업무를 대신하는 플랫폼
 ### Kbuzz WordPress 자동발행 시스템 구조
 - Cron: 매일 KST 07:00 자동 실행 (Vercel Hobby ±1시간 오차)
 - 1단계 (auto-publish): K-연예/한류 3개 + K-스포츠 2개 + 경제/비즈니스 2개 + 사회/생활 2개 + IT/과학 1개 + 롱테일 1개 = 총 11개 draft 저장
-- 2단계 (auto-publish-image): DALL-E 이미지 생성 → WP 대표이미지 설정 (수동 실행)
+- ~~2단계 (auto-publish-image): DALL-E 이미지 생성~~ (제거 2026-04-23, 이미지는 WP 관리자에서 수동 업로드)
 - 3단계: X 트윗 발행 (크레딧 충전 후)
 - 4단계 (republish-popular): 인기글 다른 각도로 재발행
 - 중복방지: Firestore aitory_published_keywords 7일 중복 체크
@@ -337,3 +335,4 @@ AI가 당신의 업무를 대신하는 플랫폼
 | 2026-04-08 | X API 401 에러 수정 - 환경변수 trim, readWrite 권한 명시, 진단 로깅 추가 |
 | 2026-04-09 | 2단계 고도화 - K-연예 롱테일 1개 추가(11개), 인기글 재발행 4단계, Google Indexing API 스텁 |
 | 2026-04-09 | 재발행 글 개선 - 같은 카테고리 내부 링크 삽입, 원본 featured_media 재활용 |
+| 2026-04-23 | /trend DALL-E 이미지 생성 단계 제거 - 이미지는 수동 업로드로 변경, 2단계 버튼 삭제, 자동화 로드맵 재구성 |

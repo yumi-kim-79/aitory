@@ -1,5 +1,17 @@
+// DALL-E 이미지 자동 생성 단계 제거 (2026-04-23)
+// 이미지는 수동 업로드로 전환되었음. 원본 구현은 주석 처리하여 보존.
+// 다시 활성화하려면 아래 주석을 해제하세요.
+
 export const maxDuration = 60;
 
+export async function POST() {
+  return Response.json(
+    { error: "DALL-E 이미지 생성은 비활성화되었습니다. 이미지는 수동 업로드하세요." },
+    { status: 410 },
+  );
+}
+
+/*
 import Anthropic from "@anthropic-ai/sdk";
 import { appendPhotoSuffix } from "@/lib/dalle-photo-prompt";
 
@@ -20,7 +32,7 @@ async function keywordToPrompt(keyword: string, category: string): Promise<strin
   }
 }
 
-export async function POST(request: Request) {
+export async function POST_DISABLED(request: Request) {
   try {
     const body = (await request.json()) as { keyword: string; category?: string };
     const { keyword } = body;
@@ -67,3 +79,4 @@ export async function POST(request: Request) {
     return Response.json({ error: msg }, { status: 500 });
   }
 }
+*/

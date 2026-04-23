@@ -5,8 +5,8 @@ import { postToTwitter } from "@/lib/twitter";
 
 export const maxDuration = 60;
 
-// ── WP 이미지 업로드 ──
-
+// ── WP 이미지 업로드 (DALL-E 제거로 비활성화 — 2026-04-23) ──
+/*
 async function uploadImageToWP(imageUrl: string, wpUrl: string, auth: string, alt: string): Promise<{ id: number; url: string } | null> {
   try {
     const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(20000) });
@@ -24,7 +24,6 @@ async function uploadImageToWP(imageUrl: string, wpUrl: string, auth: string, al
     });
     if (!wpRes.ok) { console.error("[wp-img] 업로드 실패:", wpRes.status); return null; }
     const media = await wpRes.json();
-    // alt 텍스트 설정
     if (media.id && alt) {
       await fetch(`${wpUrl}/wp-json/wp/v2/media/${media.id}`, {
         method: "POST",
@@ -39,6 +38,7 @@ async function uploadImageToWP(imageUrl: string, wpUrl: string, auth: string, al
     return null;
   }
 }
+*/
 
 // ── WP 태그/카테고리 헬퍼 ──
 
@@ -110,10 +110,10 @@ export async function POST(request: Request) {
       return Response.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
     }
 
-    const { title, content, excerpt, slug, status, tags, category, imageUrl, imageAlt, keyword } = (await request.json()) as {
+    const body = (await request.json()) as {
       title: string;
       content: string;
-      excerpt: string;
+      excerpt?: string;
       slug?: string;
       status: "draft" | "publish";
       tags?: string[];
@@ -121,7 +121,17 @@ export async function POST(request: Request) {
       imageUrl?: string;
       imageAlt?: string;
       keyword?: string;
+      metaDescription?: string;
+      focusKeyphrase?: string;
+      urlSlug?: string;
+      ogDescription?: string;
     };
+    const { title, content, status, tags, category, imageUrl, imageAlt, keyword } = body;
+    const metaDescription = body.metaDescription || body.excerpt || "";
+    const excerpt = body.excerpt || body.metaDescription || "";
+    const slug = body.urlSlug || body.slug;
+    const focusKeyphrase = body.focusKeyphrase || "";
+    const ogDescription = body.ogDescription || metaDescription;
 
     const wpUrl = process.env.WP_SITE_URL;
     const wpUser = process.env.WP_USERNAME;
@@ -168,20 +178,29 @@ export async function POST(request: Request) {
     const safeExcerpt = excerpt && excerpt.length > 150
       ? excerpt.slice(0, 147) + "..."
       : excerpt || "";
+    const safeMetaDesc = metaDescription && metaDescription.length > 150
+      ? metaDescription.slice(0, 147) + "..."
+      : metaDescription || safeExcerpt;
+    const safeOgDesc = ogDescription && ogDescription.length > 160
+      ? ogDescription.slice(0, 157) + "..."
+      : ogDescription || safeMetaDesc;
 
-    // 이미지 업로드 + featured_media
-    let featuredMediaId: number | undefined;
+    // 이미지 업로드 + featured_media (DALL-E 제거로 비활성화 — 2026-04-23)
+    // 이미지는 WP 관리자에서 수동 업로드하도록 변경.
+    const featuredMediaId: number | undefined = undefined;
+    /*
     if (imageUrl) {
       const media = await uploadImageToWP(imageUrl, wpUrl, auth, imageAlt || title);
       if (media) {
         featuredMediaId = media.id;
-        // 본문 <!-- 이미지: ... --> 주석을 WP 이미지 블록으로 교체
         htmlContent = htmlContent.replace(
           /<!-- 이미지:[^>]*-->/,
           `<!-- wp:image {"id":${media.id},"sizeSlug":"large"} -->\n<figure class="wp-block-image size-large"><img src="${media.url}" alt="${imageAlt || title}"/></figure>\n<!-- /wp:image -->`,
         );
       }
     }
+    */
+    void imageUrl; void imageAlt;
 
     console.log("[wp] 포스팅:", { title: title?.slice(0, 30), slug, status, tags: tagIds.length, cats: categoryIds.length, featuredMediaId });
 
@@ -197,7 +216,17 @@ export async function POST(request: Request) {
         status: status || "draft",
         excerpt: safeExcerpt,
         meta: {
-          _surerank_description: safeExcerpt,
+          _surerank_description: safeMetaDesc,
+          _yoast_wpseo_title: title,
+          _yoast_wpseo_metadesc: safeMetaDesc,
+          _yoast_wpseo_focuskw: focusKeyphrase,
+          _yoast_wpseo_opengraph_title: title,
+          _yoast_wpseo_opengraph_description: safeOgDesc,
+          rank_math_title: title,
+          rank_math_description: safeMetaDesc,
+          rank_math_focus_keyword: focusKeyphrase,
+          rank_math_facebook_title: title,
+          rank_math_facebook_description: safeOgDesc,
         },
         ...(slug ? { slug } : {}),
         ...(featuredMediaId ? { featured_media: featuredMediaId } : {}),
@@ -227,7 +256,8 @@ export async function POST(request: Request) {
         await adminDb.collection("aitory_published_keywords").doc(docId).set({
           keyword: keyword || "",
           category: category || "",
-          metaDesc: safeExcerpt,
+          metaDesc: safeMetaDesc,
+          focusKeyphrase,
           kbuzzUrl: wpData.link,
           kbuzzTitle: wpData.title?.rendered || title,
           kbuzzPostId: wpData.id,

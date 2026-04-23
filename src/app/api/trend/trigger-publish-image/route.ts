@@ -1,9 +1,20 @@
-export const maxDuration = 300;
+// DALL-E 이미지 자동 생성 단계 제거 (2026-04-23)
+// 2단계 버튼 및 자동화 플로우 비활성화. 원본 구현은 주석 처리하여 보존.
 
+export const maxDuration = 60;
+
+export async function POST() {
+  return Response.json(
+    { error: "2단계(DALL-E 이미지 생성)는 비활성화되었습니다. 이미지는 수동 업로드하세요." },
+    { status: 410 },
+  );
+}
+
+/*
 import { verifyToken } from "@/lib/middleware";
 import { getUserDoc } from "@/lib/auth";
 
-export async function POST(request: Request) {
+export async function POST_DISABLED(request: Request) {
   try {
     const decoded = await verifyToken(request);
     if (!decoded) return Response.json({ error: "로그인이 필요합니다." }, { status: 401 });
@@ -51,3 +62,4 @@ export async function POST(request: Request) {
     return Response.json({ error: msg }, { status: 500 });
   }
 }
+*/

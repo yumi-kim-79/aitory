@@ -1,9 +1,23 @@
+// DALL-E 이미지 자동 생성 단계 제거 (2026-04-23)
+// 2단계 자동화 비활성화. 이미지는 수동 업로드로 전환.
+// vercel.json cron 엔트리도 함께 제거되었음. 원본 구현은 주석 처리하여 보존.
+
+import { NextResponse } from 'next/server';
+
+export const maxDuration = 60;
+
+export async function GET() {
+  return NextResponse.json(
+    { success: false, message: 'DALL-E 이미지 생성 2단계가 비활성화되었습니다. 이미지는 수동 업로드하세요.' },
+    { status: 410 },
+  );
+}
+
+/*
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { adminDb } from '@/lib/firebase-admin';
 import { ensureAiImageNotice } from '@/lib/seo-aeo';
-
-export const maxDuration = 300;
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -14,9 +28,6 @@ interface ImageResult {
   error?: string;
 }
 
-// ────────────────────────────────────────────
-// WP 포스트 제목+본문 조회
-// ────────────────────────────────────────────
 async function fetchPostInfo(postId: number): Promise<{ title: string; contentPreview: string } | null> {
   const wpBase = process.env.WP_SITE_URL;
   const wpUser = process.env.WP_USERNAME;
@@ -39,9 +50,6 @@ async function fetchPostInfo(postId: number): Promise<{ title: string; contentPr
   }
 }
 
-// ────────────────────────────────────────────
-// DALL-E 3 이미지 생성 (본문 내용 기반, 실제 사진 스타일)
-// ────────────────────────────────────────────
 import { PHOTO_CATEGORY_STYLES, appendPhotoSuffix } from '@/lib/dalle-photo-prompt';
 
 async function generateImage(
@@ -70,7 +78,6 @@ Respond with ONLY the English prompt, no other text. Keep it under 200 chars.`,
       }],
     });
     const basePrompt = promptRes.content[0].type === 'text' ? promptRes.content[0].text.trim() : keyword;
-    // 사진 품질 suffix 강제 추가
     const dallePrompt = appendPhotoSuffix(basePrompt, category);
     console.log(`[image] DALL-E 프롬프트: ${dallePrompt.slice(0, 200)}`);
 
@@ -91,9 +98,6 @@ Respond with ONLY the English prompt, no other text. Keep it under 200 chars.`,
   }
 }
 
-// ────────────────────────────────────────────
-// WP 이미지 업로드 + featured_media (draft 유지)
-// ────────────────────────────────────────────
 async function uploadImageToDraft(postId: number, imageUrl: string | null, keyword: string): Promise<void> {
   if (!imageUrl) return;
 
@@ -118,14 +122,12 @@ async function uploadImageToDraft(postId: number, imageUrl: string | null, keywo
   const media = await mediaRes.json();
   if (!media.id) throw new Error('WP 미디어 업로드 실패');
 
-  // alt text 설정
   await fetch(`${wpBase}/wp-json/wp/v2/media/${media.id}`, {
     method: 'POST', headers,
     body: JSON.stringify({ alt_text: keyword }),
   }).catch(() => {});
   console.log(`[image] WP 미디어 업로드 성공: mediaId=${media.id}`);
 
-  // featured_media 설정 + AI 이미지 안내 추가 (draft 유지)
   const updateBody: Record<string, unknown> = { featured_media: media.id };
 
   const postRes = await fetch(`${wpBase}/wp-json/wp/v2/posts/${postId}`, { headers });
@@ -146,20 +148,16 @@ async function uploadImageToDraft(postId: number, imageUrl: string | null, keywo
   console.log(`[image] postId=${postId} 이미지 설정 완료 (draft 유지)`);
 }
 
-// ────────────────────────────────────────────
-// Cron 핸들러 (2단계: 이미지 생성 → draft 유지, 수동 발행)
-// ────────────────────────────────────────────
-export async function GET(req: NextRequest) {
+export async function GET_DISABLED(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // KST 기준 주말(토/일) 자동 스킵 (Cron 호출만, 수동 트리거는 우회)
   const isManual = req.headers.get('x-manual-trigger') === 'true';
   if (!isManual) {
     const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
-    const dayOfWeek = kstNow.getUTCDay(); // 0: 일, 6: 토
+    const dayOfWeek = kstNow.getUTCDay();
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       const dayName = dayOfWeek === 0 ? '일요일' : '토요일';
       console.log(`[auto-publish-image] 주말(${dayName}) 자동 스킵`);
@@ -194,15 +192,12 @@ export async function GET(req: NextRequest) {
       console.log(`[auto-publish-image] 처리: ${keyword} (postId=${postId})`);
 
       try {
-        // WP에서 제목+본문 조회
         const postInfo = await fetchPostInfo(postId);
         const title = postInfo?.title || keyword;
         const contentPreview = postInfo?.contentPreview || keyword;
 
-        // DALL-E 이미지 생성 (본문 내용 기반)
         const imageUrl = await generateImage(keyword, category, title, contentPreview);
 
-        // WP 이미지 업로드 + featured_media (draft 유지)
         await uploadImageToDraft(postId, imageUrl, keyword);
 
         await doc.ref.update({
@@ -220,7 +215,6 @@ export async function GET(req: NextRequest) {
         await doc.ref.update({ imageStatus: 'failed' }).catch(() => {});
       }
 
-      // 10초 간격 (DALL-E rate limit)
       await new Promise((r) => setTimeout(r, 10000));
     }
 
@@ -235,3 +229,4 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: msg, results }, { status: 500 });
   }
 }
+*/

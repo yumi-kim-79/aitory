@@ -29,7 +29,24 @@ function formatTraffic(traffic: string): { label: string; color: string } {
   return { label: `▲ +${formatted}`, color: "text-emerald-500" };
 }
 interface SnsContent { summary: string; instagram: string; blog: string; twitter: string; youtube?: string }
-interface BlogPost { title: string; slug?: string; content: string; category: string; tags: string[]; excerpt: string; imageAlt?: string }
+interface BlogPost {
+  title: string;
+  slug?: string;
+  content: string;
+  category: string;
+  tags: string[];
+  excerpt: string;
+  imageAlt?: string;
+  metaDescription?: string;
+  focusKeyphrase?: string;
+  urlSlug?: string;
+  ogDescription?: string;
+  suggestedCategories?: string[];
+  internalLinkKeywords?: string[];
+  factCheckWarnings?: string[];
+  copyrightRisks?: string[];
+  suggestedSources?: string[];
+}
 
 export default function TrendPage() {
   const { user, getIdToken } = useAuth();
@@ -55,7 +72,6 @@ export default function TrendPage() {
   const [apiError, setApiError] = useState("");
   const [autoPublishing, setAutoPublishing] = useState(false);
   const [autoCooldown, setAutoCooldown] = useState(false);
-  const [autoImagePublishing, setAutoImagePublishing] = useState(false);
   const [autoTweeting, setAutoTweeting] = useState(false);
   const [republishing, setRepublishing] = useState(false);
   const [v3Running, setV3Running] = useState(false);
@@ -153,7 +169,20 @@ export default function TrendPage() {
     setPublishing(true); setPublishError("");
     try {
       const token = await getIdToken();
-      const res = await fetch("/api/trend/post-to-wp", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ title: blogPost.title, content: blogPost.content, excerpt: blogPost.excerpt, slug: blogPost.slug, status: publishStatus, tags: blogPost.tags, category: blogPost.category, keyword: selectedKeyword || "" }) });
+      const res = await fetch("/api/trend/post-to-wp", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({
+        title: blogPost.title,
+        content: blogPost.content,
+        excerpt: blogPost.excerpt,
+        slug: blogPost.slug,
+        status: publishStatus,
+        tags: blogPost.tags,
+        category: blogPost.category,
+        keyword: selectedKeyword || "",
+        metaDescription: blogPost.metaDescription,
+        focusKeyphrase: blogPost.focusKeyphrase,
+        urlSlug: blogPost.urlSlug,
+        ogDescription: blogPost.ogDescription,
+      }) });
       const data = await res.json();
       if (data.ok) setPublishResult({ postUrl: data.postUrl, status: data.status, tweetUrl: data.tweetUrl, tweetError: data.tweetError });
       else setPublishError(data.error || "발행 실패");
@@ -228,6 +257,108 @@ export default function TrendPage() {
         />
         {blogPost.excerpt && <p className="mt-4 text-xs text-slate-400 italic">메타: {blogPost.excerpt}</p>}
       </div>
+
+      {/* SEO 정보 패널 */}
+      {(blogPost.focusKeyphrase || blogPost.metaDescription || blogPost.urlSlug || blogPost.ogDescription || blogPost.factCheckWarnings?.length || blogPost.copyrightRisks?.length || blogPost.suggestedSources?.length || blogPost.suggestedCategories?.length || blogPost.internalLinkKeywords?.length) && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-3">
+          <h3 className="text-sm font-bold text-slate-900 mb-2">🎯 SEO 최적화 정보</h3>
+
+          {blogPost.focusKeyphrase && (
+            <div className="flex gap-2 text-sm">
+              <strong className="text-slate-600 min-w-28">Focus Keyphrase</strong>
+              <span className="text-slate-900">{blogPost.focusKeyphrase}</span>
+            </div>
+          )}
+
+          {(blogPost.metaDescription || blogPost.excerpt) && (
+            <div className="flex gap-2 text-sm">
+              <strong className="text-slate-600 min-w-28">Meta Description</strong>
+              <span className="text-slate-700 flex-1">
+                {blogPost.metaDescription || blogPost.excerpt}
+                <span className={`ml-2 text-xs ${(blogPost.metaDescription || blogPost.excerpt || "").length > 150 ? "text-red-500" : "text-slate-400"}`}>
+                  ({(blogPost.metaDescription || blogPost.excerpt || "").length}/150)
+                </span>
+              </span>
+            </div>
+          )}
+
+          {(blogPost.urlSlug || blogPost.slug) && (
+            <div className="flex gap-2 text-sm">
+              <strong className="text-slate-600 min-w-28">URL Slug</strong>
+              <code className="text-xs text-slate-700 bg-slate-50 px-2 py-0.5 rounded">{blogPost.urlSlug || blogPost.slug}</code>
+            </div>
+          )}
+
+          {blogPost.ogDescription && (
+            <div className="flex gap-2 text-sm">
+              <strong className="text-slate-600 min-w-28">OG Description</strong>
+              <span className="text-slate-700 flex-1">
+                {blogPost.ogDescription}
+                <span className={`ml-2 text-xs ${blogPost.ogDescription.length > 160 ? "text-red-500" : "text-slate-400"}`}>
+                  ({blogPost.ogDescription.length}/160)
+                </span>
+              </span>
+            </div>
+          )}
+
+          {blogPost.suggestedCategories && blogPost.suggestedCategories.length > 0 && (
+            <div className="flex gap-2 text-sm">
+              <strong className="text-slate-600 min-w-28">카테고리 후보</strong>
+              <div className="flex gap-1 flex-wrap">
+                {blogPost.suggestedCategories.map((c, i) => (
+                  <span key={i} className="text-xs px-2 py-0.5 bg-slate-100 text-slate-700 rounded">{c}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {blogPost.internalLinkKeywords && blogPost.internalLinkKeywords.length > 0 && (
+            <div className="flex gap-2 text-sm">
+              <strong className="text-slate-600 min-w-28">내부 링크 키워드</strong>
+              <div className="flex gap-1 flex-wrap">
+                {blogPost.internalLinkKeywords.map((k, i) => (
+                  <span key={i} className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded">{k}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {blogPost.factCheckWarnings && blogPost.factCheckWarnings.length > 0 && (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <strong className="text-yellow-800 text-sm">⚠️ 팩트 체크 필요</strong>
+              <ul className="list-disc pl-5 mt-1">
+                {blogPost.factCheckWarnings.map((w, i) => (
+                  <li key={i} className="text-xs text-yellow-800">{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {blogPost.copyrightRisks && blogPost.copyrightRisks.length > 0 && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <strong className="text-red-800 text-sm">🚨 초상권/저작권 주의</strong>
+              <ul className="list-disc pl-5 mt-1">
+                {blogPost.copyrightRisks.map((r, i) => (
+                  <li key={i} className="text-xs text-red-800">{r}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {blogPost.suggestedSources && blogPost.suggestedSources.length > 0 && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <strong className="text-blue-800 text-sm">📎 권장 출처</strong>
+              <ul className="list-disc pl-5 mt-1">
+                {blogPost.suggestedSources.map((s, i) => (
+                  <li key={i} className="text-xs">
+                    <a href={s} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline break-all">{s}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex gap-3">
         <button onClick={() => copy(blogPost.content, "blog")} className="flex-1 py-3 bg-slate-100 text-slate-700 rounded-xl font-medium hover:bg-slate-200 flex items-center justify-center gap-2">
@@ -362,7 +493,6 @@ export default function TrendPage() {
               <div className="space-y-3 text-sm text-slate-600 mb-6">
                 <p>매일 <strong>07:00</strong> (KST) 자동 발행</p>
                 <p><strong>1단계</strong> (07:00): 롱테일 제목 + SEO+AEO + Google 색인 자동 적용 → WP <span className="text-amber-600 font-medium">draft</span> 저장</p>
-                <p><strong>2단계</strong> (07:05): DALL-E 이미지 생성 → WP 이미지 업로드 → <span className="text-amber-600 font-medium">검수 후 수동 발행</span></p>
                 <p><strong>3단계</strong> (수동): X 트윗 발행 (텍스트만)</p>
                 <p><strong>4단계</strong> (수동): 인기글 재발행 - 최근 30일 글 5개 다른 각도로 재작성</p>
                 <p><strong>V3</strong> (수동): 롱테일 제목 3안 + AI 요약박스 + FAQ + JSON-LD + Google 색인</p>
@@ -406,26 +536,6 @@ export default function TrendPage() {
                 className="w-full py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 disabled:bg-purple-300 flex items-center justify-center gap-2"
               >
                 {autoPublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Draft 저장 중... (2~4분, 10개 병렬)</> : "🚀 1단계: Draft 저장 (V3 자동화)"}
-              </button>
-              <button
-                onClick={async () => {
-                  setAutoImagePublishing(true); setAutoResults([]);
-                  try {
-                    const token = await getIdToken();
-                    if (!token) { setAutoResults([{ keyword: "인증 오류", ok: false, error: "로그인 토큰 실패" }]); return; }
-                    const res = await fetch("/api/trend/trigger-publish-image", { method: "POST", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(280000) });
-                    const data = await res.json();
-                    if (!res.ok) { setAutoResults([{ keyword: "오류", ok: false, error: data.error || `HTTP ${res.status}` }]); }
-                    else if (data.results?.length) { setAutoResults(data.results.map((r: { keyword: string; success: boolean; error?: string }) => ({ keyword: r.keyword, success: r.success, ok: r.success, error: r.error }))); }
-                    else if (data.message) { setAutoResults([{ keyword: "완료", success: true, error: data.message }]); }
-                  } catch (err) {
-                    setAutoResults([{ keyword: "에러", ok: false, error: `호출 실패: ${err instanceof Error ? err.message : String(err)}` }]);
-                  } finally { setAutoImagePublishing(false); }
-                }}
-                disabled={autoImagePublishing}
-                className="w-full py-3 bg-amber-500 text-white rounded-xl font-medium hover:bg-amber-600 disabled:bg-amber-300 flex items-center justify-center gap-2 mt-3"
-              >
-                {autoImagePublishing ? <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />이미지 생성 중... (2~4분)</> : "🖼️ 2단계: 이미지 생성 (검수 후 수동 발행)"}
               </button>
               <button
                 onClick={async () => {
