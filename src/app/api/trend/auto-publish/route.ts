@@ -532,10 +532,23 @@ async function postDraftToWP(params: {
   } catch {}
 
   const safeExcerpt = params.metaDesc.slice(0, 150);
+  const focusKw = params.keyword.trim();
   const postBody: Record<string, unknown> = {
     title: params.title, content: params.content, status: 'draft',
     excerpt: safeExcerpt, tags: tagIds,
-    meta: { _surerank_description: safeExcerpt, _yoast_wpseo_metadesc: safeExcerpt },
+    meta: {
+      _surerank_description: safeExcerpt,
+      _yoast_wpseo_title: params.title,
+      _yoast_wpseo_metadesc: safeExcerpt,
+      _yoast_wpseo_focuskw: focusKw,
+      _yoast_wpseo_opengraph_title: params.title,
+      _yoast_wpseo_opengraph_description: safeExcerpt,
+      rank_math_title: params.title,
+      rank_math_description: safeExcerpt,
+      rank_math_focus_keyword: focusKw,
+      rank_math_facebook_title: params.title,
+      rank_math_facebook_description: safeExcerpt,
+    },
   };
   if (params.slug) postBody.slug = params.slug;
   if (categoryId) postBody.categories = [categoryId];
