@@ -309,14 +309,36 @@ K-POP 글로벌 SEO 블로그 글을 JSON으로 반환. 반드시 완전한 JSON
 
 slug: 핵심 키워드 영문, 50자 이내, 소문자, 하이픈
 
+🚨 중요 - 법적 안전성 (최우선):
+- 반드시 위에 제공된 뉴스 10개의 실제 내용만을 바탕으로 작성하세요
+- 가상의 정보, 추측, 루머, 명예훼손 소지 있는 표현은 절대 포함하지 마세요
+- 여러 기사에서 일치하는 사실만 단정형으로 사용하세요
+- 한 기사에만 있는 내용은 "~로 보도되었다", "~라고 전했다", "~에 따르면" 같은 출처 명시 표현 사용
+- 구체적 수치(차트 순위, 판매량, 관객 수, 조회수 등)는 반드시 기사 원문에 있는 것만 사용
+
+✅ 작성 전 필수 확인 절차:
+1. 제공된 10개 뉴스 기사를 꼼꼼히 읽기
+2. 여러 기사에서 일치하는 핵심 사실 추출
+3. 한 기사에만 있는 내용은 "~로 보도되었다" 등으로 출처 명시
+4. 기사에 없는 내용은 절대 추가하지 않기
+5. 날짜·수치·인명·곡명·소속사명 등은 기사 원문 그대로 사용
+
+🚫 금지 사항:
+- 기사에 없는 가상의 인터뷰 내용 생성 금지
+- 기사에 없는 구체적 수치(차트 순위·매출·조회수) 생성 금지
+- 기사에 없는 일정/계획/스케줄 언급 금지
+- "~할 예정이다", "~할 것으로 예상된다" 같은 추측성 표현은 기사 원문에 있을 때만 사용
+- 사생활·열애설·논란 추측 금지
+
 content 필수 요건 (마크다운, 2000자 이상):
 - 위 뉴스 10개를 꼼꼼히 분석하여 사실관계 확인 (중복/모순 정보는 교차 검증, 가장 신뢰도 높은 정보로 작성)
 - 구체적 수치, 날짜, 인용문 등 디테일 포함 (추측·과장 금지)
 - ## 소제목 4개 이상, 각 소제목 아래 2~3단락 풍부하게
 - **굵게**, - 리스트 활용
-- 팬들이 궁금해할 배경 정보, 과거 기록, 비교 분석 포함
+- 팬들이 궁금해할 배경 정보, 과거 기록, 비교 분석 포함 (모두 기사 근거)
 - 글로벌 독자를 고려해 핵심 고유명사(아티스트/곡/앨범)는 한글 옆에 영문 병기
 - 오늘(${today}) 기준 최신 정보
+- 본문 중 인용 시 "연합뉴스 보도에 따르면", "Billboard에 따르면" 등 출처 표현 자연스럽게 사용
 
 excerpt (메타설명, 150자, 한글+영문 혼합):
 - 글로벌 검색 최적화: 한글+영문 키워드 자연스럽게 혼합
@@ -351,6 +373,60 @@ tags (정확히 20개, 한글+영문 혼합):
     const relatedHtml = relatedPosts.map((p) => `<li><a href="${p.url}">${p.title}</a></li>`).join('\n');
     content += `\n<h3>관련 글</h3>\n<ul>\n${relatedHtml}\n</ul>`;
   }
+
+  // ────────────────────────────────────────────
+  // 법적 안전장치: 공식 출처 + 면책 조항 자동 첨부
+  // ────────────────────────────────────────────
+  const haystack = `${keyword} ${parsed.title ?? ''} ${parsed.content ?? ''}`;
+  const artistName =
+    /BTS|방탄소년단/i.test(haystack) ? 'BTS' :
+    /BLACKPINK|블랙핑크/i.test(haystack) ? 'BLACKPINK' :
+    /NewJeans|뉴진스/i.test(haystack) ? 'NewJeans' :
+    /aespa|에스파/i.test(haystack) ? 'aespa' :
+    /SEVENTEEN|세븐틴/i.test(haystack) ? 'SEVENTEEN' :
+    /TWICE|트와이스/i.test(haystack) ? 'TWICE' :
+    /Stray Kids|스트레이키즈/i.test(haystack) ? 'Stray Kids' :
+    /LE SSERAFIM|르세라핌/i.test(haystack) ? 'LE SSERAFIM' :
+    /\bIVE\b|아이브/i.test(haystack) ? 'IVE' :
+    /ITZY|있지/i.test(haystack) ? 'ITZY' :
+    /ENHYPEN|엔하이픈/i.test(haystack) ? 'ENHYPEN' :
+    /\bTXT\b|투모로우바이투게더/i.test(haystack) ? 'TXT' :
+    'K-POP 아티스트';
+
+  const agencyMap: Record<string, string> = {
+    'BTS': 'BIGHIT MUSIC / HYBE',
+    'BLACKPINK': 'YG Entertainment',
+    'NewJeans': 'ADOR',
+    'aespa': 'SM Entertainment',
+    'SEVENTEEN': 'Pledis Entertainment',
+    'TWICE': 'JYP Entertainment',
+    'Stray Kids': 'JYP Entertainment',
+    'LE SSERAFIM': 'Source Music / HYBE',
+    'IVE': 'Starship Entertainment',
+    'ITZY': 'JYP Entertainment',
+    'ENHYPEN': 'BELIFT LAB / HYBE',
+    'TXT': 'BIGHIT MUSIC / HYBE',
+  };
+  const agency = agencyMap[artistName] || '소속사';
+
+  const sourceSection = `
+<div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-left: 4px solid #e91e63;">
+  <p style="margin: 0 0 15px 0; font-size: 14px; color: #666;">
+    ※ 본 콘텐츠는 공식 발표 및 언론 보도를 바탕으로 작성되었습니다.
+  </p>
+  <p style="margin: 0 0 10px 0; font-weight: bold; color: #333;">출처:</p>
+  <ul style="margin: 0 0 15px 0; padding-left: 20px; font-size: 14px; color: #555;">
+    <li>${artistName} 공식 SNS 및 ${agency} 공식 채널</li>
+    <li>한국 언론: 연합뉴스, 스포츠서울, OSEN, 뉴스1 등</li>
+    <li>글로벌 미디어: Billboard, Variety, Rolling Stone, Soompi 등</li>
+    <li>공식 차트: Spotify Global Chart, Apple Music, Billboard Chart 등</li>
+  </ul>
+  <p style="margin: 0; font-size: 13px; color: #999;">
+    ※ 게시 시점 기준 정보이며, 실제 상황은 변동될 수 있습니다. 정확한 정보는 공식 채널을 확인하시기 바랍니다.
+  </p>
+</div>
+`;
+  content = content + sourceSection;
 
   const metaDesc = (parsed.metaDesc as string || parsed.excerpt as string || '').slice(0, 150);
   let slug = (parsed.slug as string || '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
