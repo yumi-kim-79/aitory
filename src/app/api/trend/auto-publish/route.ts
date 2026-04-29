@@ -11,6 +11,17 @@ export const maxDuration = 300;
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// ────────────────────────────────────────────
+// 카테고리 비율 (K-POP 글로벌 SEO 집중)
+// ────────────────────────────────────────────
+const TARGET_POSTS = 10;
+const K_CONTENT_RATIO = 1.0; // 100% K-POP/한류
+const kContentCount = TARGET_POSTS; // 10개
+const generalCount = TARGET_POSTS - kContentCount; // 0개
+const K_ENTERTAINMENT_COUNT = 7;
+const K_SPORTS_COUNT = kContentCount - K_ENTERTAINMENT_COUNT; // 3개
+void generalCount; // 일반 카테고리 제거 (K_CONTENT_RATIO=1.0)
+
 function extractJSON(text: string): string {
   const f = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (f) return f[1].trim();
@@ -76,8 +87,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 // ────────────────────────────────────────────
 async function fetchRssTitles(query: string, count = 5): Promise<string[]> {
   try {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const afterDate = yesterday.toISOString().split('T')[0]; // YYYY-MM-DD
     const res = await fetch(
-      `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`,
+      `https://news.google.com/rss/search?q=${encodeURIComponent(`${query} after:${afterDate}`)}&hl=ko&gl=KR&ceid=KR:ko`,
       { signal: AbortSignal.timeout(10000) }
     );
     if (!res.ok) return [];
@@ -97,8 +111,11 @@ async function fetchRssTitles(query: string, count = 5): Promise<string[]> {
 // ────────────────────────────────────────────
 async function fetchNews(keyword: string): Promise<string> {
   try {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const afterDate = yesterday.toISOString().split('T')[0]; // YYYY-MM-DD (최근 24시간)
     const res = await fetch(
-      `https://news.google.com/rss/search?q=${encodeURIComponent(keyword)}&hl=ko&gl=KR&ceid=KR:ko`,
+      `https://news.google.com/rss/search?q=${encodeURIComponent(`${keyword} after:${afterDate}`)}&hl=ko&gl=KR&ceid=KR:ko`,
       { signal: AbortSignal.timeout(10000) }
     );
     const xml = await res.text();
@@ -186,11 +203,20 @@ async function selectKeywordsFromRss(
   if (titles.length === 0) return [];
 
   try {
+    const isKContent = category.startsWith('K-');
+    const criteriaText = isKContent
+      ? `선정 기준 (K-POP 글로벌 SEO 집중):
+- K-POP 아티스트명 우선 (BTS, BLACKPINK, NewJeans, aespa, SEVENTEEN, TWICE, Stray Kids, LE SSERAFIM, IVE, ITZY, ENHYPEN, TXT 등)
+- 컴백, 신곡, 차트, 수상, 콘서트, 데뷔, 빌보드, MV 등 팬덤/글로벌 관심 키워드 포함
+- 논란, 루머, 사건사고, 열애설 등 부정적 키워드는 제외
+- 정치 제외, 서로 다른 주제, 글로벌 검색량 높은 키워드`
+      : `선정 기준: 구체적 인물/이벤트/작품명, 검색량 높은 키워드, 정치 제외, 서로 다른 주제`;
+
     const prompt = `아래 뉴스 제목 중에서 블로그 글을 쓰기 좋은 핵심 키워드를 ${count + 2}개 선정해줘.
 카테고리: ${category}
 뉴스 제목:
 ${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
-선정 기준: 구체적 인물/이벤트/작품명, 검색량 높은 키워드, 정치 제외, 서로 다른 주제
+${criteriaText}
 응답 형식(JSON 배열만): [${Array.from({ length: count + 2 }, (_, i) => `"키워드${i + 1}"`).join(', ')}]`;
 
     const res = await client.messages.create({
@@ -219,59 +245,9 @@ ${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 }
 
 // ────────────────────────────────────────────
-// 일반 카테고리: 트렌드 우선 + RSS 보완
+// 일반 카테고리(selectGeneralKeywords) 함수 제거됨
+// 사유: K_CONTENT_RATIO=1.0 적용으로 일반 카테고리(경제/사회/IT) 발행 중단
 // ────────────────────────────────────────────
-async function selectGeneralKeywords(
-  trendKeywords: string[], batchKeywords: Set<string>
-): Promise<SelectedKeyword[]> {
-  const categories = [
-    { name: '경제/비즈니스', rssQuery: '주식 OR 부동산 OR 경제 OR 환율', count: 2 },
-    { name: '사회/생활', rssQuery: '생활 OR 건강 OR 날씨 OR 교육', count: 2 },
-    { name: 'IT/과학', rssQuery: 'AI OR IT OR 기술 OR 과학 OR 스마트폰', count: 1 },
-  ];
-
-  // 트렌드 키워드 분류
-  let classified: { keyword: string; category: string }[] = [];
-  if (trendKeywords.length > 0) {
-    try {
-      const prompt = `다음 키워드들을 카테고리로 분류. 카테고리: 경제/비즈니스, 사회/생활, IT/과학, 기타
-키워드: ${trendKeywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}
-응답(JSON 배열만): [{"keyword":"키워드","category":"카테고리명"}]`;
-      const res = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 500,
-        messages: [{ role: 'user', content: prompt }],
-      });
-      const text = res.content[0].type === 'text' ? res.content[0].text : '';
-      const match = text.match(/\[[\s\S]*\]/);
-      if (match) classified = JSON.parse(match[0]);
-    } catch {}
-  }
-
-  const results: SelectedKeyword[] = [];
-
-  for (const cat of categories) {
-    let filled = 0;
-
-    // 트렌드에서 해당 카테고리 찾기
-    for (const c of classified) {
-      if (filled >= cat.count) break;
-      if (c.category !== cat.name) continue;
-      if (batchKeywords.has(c.keyword) || isDuplicateSync(c.keyword)) continue;
-      if (results.some((r) => r.keyword === c.keyword)) continue;
-      batchKeywords.add(c.keyword);
-      results.push({ keyword: c.keyword, category: cat.name, news: '' });
-      filled++;
-    }
-
-    // RSS 보완
-    if (filled < cat.count) {
-      const rssResults = await selectKeywordsFromRss(cat.rssQuery, cat.name, cat.count - filled, batchKeywords);
-      results.push(...rssResults);
-    }
-  }
-
-  return results;
-}
 
 // ────────────────────────────────────────────
 // WP 같은 카테고리 최근 글 조회
@@ -325,26 +301,40 @@ ${relatedPosts.map((p) => `- <a href="${p.url}">${p.title}</a>`).join('\n')}`
   const prompt = `키워드: ${keyword}
 카테고리: ${category}
 오늘: ${today}
-뉴스:
+뉴스 (10개):
 ${news}
 
-SEO 블로그 글을 JSON으로 반환. 반드시 완전한 JSON만 반환, 중간에 절대 끊지 말 것. 다른 텍스트 없이 JSON만:
-{"title":"제목 40~60자","slug":"seo-english-slug","content":"마크다운 본문","excerpt":"메타설명 140자이내","tags":["태그1","태그2","태그3","태그4","태그5"]}
+K-POP 글로벌 SEO 블로그 글을 JSON으로 반환. 반드시 완전한 JSON만 반환, 중간에 절대 끊지 말 것. 다른 텍스트 없이 JSON만:
+{"title":"제목 40~60자","slug":"seo-english-slug","content":"마크다운 본문","excerpt":"한글+영문 혼합 메타설명 150자","tags":["태그1","...","태그20"]}
 
 slug: 핵심 키워드 영문, 50자 이내, 소문자, 하이픈
-content 필수 요건 (마크다운 형식):
-- 2000자 이상
-- ## 소제목 4개 이상, 각 소제목 아래 2~3단락
+
+content 필수 요건 (마크다운, 2000자 이상):
+- 위 뉴스 10개를 꼼꼼히 분석하여 사실관계 확인 (중복/모순 정보는 교차 검증, 가장 신뢰도 높은 정보로 작성)
+- 구체적 수치, 날짜, 인용문 등 디테일 포함 (추측·과장 금지)
+- ## 소제목 4개 이상, 각 소제목 아래 2~3단락 풍부하게
 - **굵게**, - 리스트 활용
-- 구체적 수치/날짜/인용구 포함
+- 팬들이 궁금해할 배경 정보, 과거 기록, 비교 분석 포함
+- 글로벌 독자를 고려해 핵심 고유명사(아티스트/곡/앨범)는 한글 옆에 영문 병기
 - 오늘(${today}) 기준 최신 정보
-excerpt는 반드시 140자 이내.${linkInstruction}
+
+excerpt (메타설명, 150자, 한글+영문 혼합):
+- 글로벌 검색 최적화: 한글+영문 키워드 자연스럽게 혼합
+- 예시: "BTS 정국 솔로 앨범 | Jungkook 'Golden' breaks Billboard records, 글로벌 차트 석권"
+- 핵심 키워드는 영문도 함께 표기 (BTS, BLACKPINK, NewJeans, KPOP, Hallyu 등)
+- 150자 초과 금지
+
+tags (정확히 20개, 한글+영문 혼합):
+- 예시: ["BTS","방탄소년단","Jungkook","정국","KPOP","K팝","Hallyu","한류","Billboard","빌보드","SoloDebut","솔로데뷔","Golden","골든","GlobalChart","글로벌차트","Army","아미","BigHit","빅히트"]
+- 영문 태그는 CamelCase 또는 snake_case 사용 (공백/특수문자 금지)
+- 아티스트명, 곡명, 앨범명, 그룹명, 회사명은 한글+영문 둘 다 포함
+- 쟝르/팬덤/플랫폼 키워드도 한영 병기 (KPOP/K팝, Army/아미)${linkInstruction}
 
 ⚠️ JSON content 안의 줄바꿈은 \\n으로 이스케이프, 따옴표는 \\"로 이스케이프할 것.`;
 
   const res = await client.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 2500,
+    max_tokens: 3500, // 2500 → 3500 (20 태그 + 2000자+ 본문)
     messages: [{ role: 'user', content: prompt }],
   });
 
@@ -504,9 +494,9 @@ async function postDraftToWP(params: {
   const auth = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
   const headers = { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' };
 
-  // 태그 병렬 처리
+  // 태그 병렬 처리 (한영 혼합 20개)
   const tagIds = (await Promise.all(
-    params.tags.slice(0, 5).map(async (tag) => {
+    params.tags.slice(0, 20).map(async (tag) => {
       try {
         const s = await fetch(`${wpBase}/wp-json/wp/v2/tags?search=${encodeURIComponent(tag)}`, { headers, signal: AbortSignal.timeout(8000) });
         const existing = await s.json();
@@ -592,32 +582,23 @@ export async function GET(req: NextRequest) {
   try {
     const batchKeywords = new Set<string>();
 
-    // 중복 캐시 로드 + 트렌드 수집 + K-콘텐츠 RSS 수집 병렬
-    const baseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : 'https://aitory.vercel.app';
+    console.log(`[auto-publish] 키워드 수집 시작 (100% K-콘텐츠, K-연예 ${K_ENTERTAINMENT_COUNT} + K-스포츠 ${K_SPORTS_COUNT})...`);
 
-    console.log('[auto-publish] 키워드 수집 시작 (병렬)...');
-
-    const [, trendResult, kEntertainment, kSports] = await Promise.all([
+    // 중복 캐시 로드 + K-콘텐츠 RSS 수집 병렬 (일반 카테고리/트렌드 수집 제거)
+    const [, kEntertainment, kSports] = await Promise.all([
       loadDupCache(),
-      // 트렌드 TOP 10 수집
-      fetch(`${baseUrl}/api/trend/fetch`, { signal: AbortSignal.timeout(15000) })
-        .then(async (r) => r.ok ? ((await r.json()).keywords || []).map((k: { title: string }) => k.title).slice(0, 10) as string[] : [])
-        .catch(() => [] as string[]),
-      // K-연예/한류 RSS (3개)
-      selectKeywordsFromRss('K-드라마 OR K-팝 OR 아이돌 OR 한류 OR 미스트롯 OR 미스터트롯', 'K-연예/한류', 3, batchKeywords),
-      // K-스포츠 RSS (2개)
-      selectKeywordsFromRss('손흥민 OR 류현진 OR 한국축구 OR 한국야구 OR 김민재 OR KBO OR K리그', 'K-스포츠', 2, batchKeywords),
+      // K-연예/한류 RSS (7개) - K-POP 아티스트 중심으로 글로벌 SEO 강화
+      selectKeywordsFromRss(
+        'BTS OR 방탄소년단 OR BLACKPINK OR 블랙핑크 OR NewJeans OR 뉴진스 OR aespa OR 에스파 OR SEVENTEEN OR 세븐틴 OR TWICE OR 트와이스 OR "Stray Kids" OR 스트레이키즈 OR "LE SSERAFIM" OR 르세라핌 OR IVE OR 아이브 OR ITZY OR ENHYPEN OR TXT OR K-팝 OR 한류 OR 케이팝 OR 컴백 OR 빌보드',
+        'K-연예/한류', K_ENTERTAINMENT_COUNT, batchKeywords
+      ),
+      // K-스포츠 RSS (3개)
+      selectKeywordsFromRss('손흥민 OR 김민재 OR 이강인 OR 류현진 OR 김하성 OR 한국축구 OR 한국야구 OR KBO OR K리그', 'K-스포츠', K_SPORTS_COUNT, batchKeywords),
     ]);
 
-    console.log(`[auto-publish] K-연예: ${kEntertainment.length}개, K-스포츠: ${kSports.length}개, 트렌드: ${trendResult.length}개`);
+    console.log(`[auto-publish] K-연예: ${kEntertainment.length}개, K-스포츠: ${kSports.length}개 (일반 카테고리 제거)`);
 
-    // 일반 카테고리 수집 (트렌드 우선)
-    const generalKeywords = await selectGeneralKeywords(trendResult, batchKeywords);
-    console.log(`[auto-publish] 일반: ${generalKeywords.length}개`);
+    // 일반 카테고리(generalTrends/selectGeneralKeywords) 수집 로직은 K_CONTENT_RATIO=1.0 적용으로 제거됨
 
     // K-연예/한류 첫 키워드 기반 롱테일 1개 추가 (총 11개)
     const longtailKeywords: SelectedKeyword[] = [];
@@ -631,7 +612,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const allKeywords = [...kEntertainment, ...kSports, ...generalKeywords, ...longtailKeywords];
+    const allKeywords = [...kEntertainment, ...kSports, ...longtailKeywords];
     console.log('[auto-publish] 전체 선정:', allKeywords.map((k) => `${k.category}: ${k.keyword}`));
 
     if (allKeywords.length === 0) {
