@@ -489,14 +489,20 @@ export default function TrendPage() {
         {mainTab === "auto" && isAdmin && (
           <div className="mb-8">
             <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 mb-6">
-              <h2 className="text-lg font-bold text-slate-900 mb-4">🤖 자동 발행 시스템</h2>
+              <h2 className="text-lg font-bold text-slate-900 mb-4">🤖 자동 발행 시스템 <span className="ml-2 text-xs px-2 py-0.5 bg-pink-100 text-pink-700 rounded-full align-middle">K-POP 글로벌 SEO</span></h2>
               <div className="space-y-3 text-sm text-slate-600 mb-6">
                 <p>매일 <strong>07:00</strong> (KST) 자동 발행</p>
-                <p><strong>1단계</strong> (07:00): 롱테일 제목 + SEO+AEO + Google 색인 자동 적용 → WP <span className="text-amber-600 font-medium">draft</span> 저장</p>
+                <p><strong>1단계</strong> (07:00): <strong>K-POP/한류 100%</strong> 자동 발행 → 최근 <strong>24시간</strong> 뉴스 기반 10개 글 생성 → SEO+AEO+Google 색인 → WP <span className="text-amber-600 font-medium">draft</span> 저장</p>
+                <ul className="list-disc list-inside ml-4 space-y-1 text-slate-500">
+                  <li><strong>K-연예/한류 7개</strong> (BTS, BLACKPINK, NewJeans, aespa, SEVENTEEN 등 글로벌 팬덤 타겟)</li>
+                  <li><strong>K-스포츠 3개</strong> (손흥민 등)</li>
+                  <li>메타 설명: <strong>한글+영문 혼합 150자</strong> (글로벌 SEO 최적화)</li>
+                  <li>태그: <strong>한글+영문 혼합 20개</strong> (예: BTS/방탄소년단, KPOP/K팝)</li>
+                  <li>내용: <strong>2000자+</strong> 사실관계 검증, 구체적 수치/배경/비교 분석</li>
+                </ul>
                 <p><strong>3단계</strong> (수동): X 트윗 발행 (텍스트만)</p>
                 <p><strong>4단계</strong> (수동): 인기글 재발행 - 최근 30일 글 5개 다른 각도로 재작성</p>
                 <p><strong>V3</strong> (수동): 롱테일 제목 3안 + AI 요약박스 + FAQ + JSON-LD + Google 색인</p>
-                <p>K-콘텐츠 50%: <strong>K-연예/한류</strong>(3), <strong>K-스포츠</strong>(2) + 일반(5) = 10개</p>
                 <p className="text-red-500">정치/선거/탄핵 키워드는 자동 제외됩니다.</p>
               </div>
               <button
