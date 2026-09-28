@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const { senderName, clientName, clientEmail, total, docType } = await request.json();
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: 1000,
       system: `이메일 제목과 본문을 JSON으로 생성하세요. 응답은 반드시 { 로 시작. 코드블록 없이.
 {"subject":"이메일 제목","body":"이메일 본문 (줄바꿈 포함)"}`,
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       }],
     });
 
-    const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+    const responseText = message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     let result;
     try { result = JSON.parse(extractJSON(responseText)); } catch { result = { subject: `${docType || "견적서"} 발송 드립니다 - ${senderName}`, body: `안녕하세요, ${clientName}님.\n\n${docType || "견적서"}를 발송해 드립니다.\n금액: ${total?.toLocaleString() || 0}원\n\n검토 부탁드립니다.\n\n감사합니다.\n${senderName}` }; }
 

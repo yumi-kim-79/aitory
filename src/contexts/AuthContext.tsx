@@ -16,6 +16,7 @@ import {
   signOut as firebaseSignOut,
   GoogleAuthProvider,
   signInWithPopup,
+  sendPasswordResetEmail,
   type User as FirebaseUser,
   type Unsubscribe,
 } from "firebase/auth";
@@ -38,6 +39,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   getIdToken: (forceRefresh?: boolean) => Promise<string | null>;
+  resetPassword: (email: string) => Promise<void>;
   refreshUser: () => void;
 }
 
@@ -157,6 +159,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setFirebaseUser(null);
   }, []);
 
+  const resetPassword = useCallback(async (email: string) => {
+    await sendPasswordResetEmail(auth, email);
+  }, []);
+
   const getIdToken = useCallback(async (forceRefresh?: boolean) => {
     return firebaseUser ? firebaseUser.getIdToken(forceRefresh) : null;
   }, [firebaseUser]);
@@ -175,6 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithGoogle: handleGoogleSignIn,
         signOut: handleSignOut,
         getIdToken,
+        resetPassword,
         refreshUser: triggerRefresh,
       }}
     >

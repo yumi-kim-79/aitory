@@ -72,6 +72,9 @@ export default function SigninPage() {
             <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="이메일" className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
             <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호" className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
 
+            <div className="text-right -mt-1">
+              <Link href="/auth/reset" className="text-xs text-slate-500 hover:text-blue-600">비밀번호를 잊으셨나요?</Link>
+            </div>
             {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
             <button type="submit" disabled={loading} className="w-full py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 disabled:bg-slate-300 transition-colors">

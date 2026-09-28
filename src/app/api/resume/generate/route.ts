@@ -61,8 +61,8 @@ ${input.careers.filter((c) => c.company).map((c) => `- ${c.company} / ${c.positi
 키워드: ${input.keywords}`;
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
+      model: "claude-sonnet-5",
+      max_tokens: 8192,
       system: `당신은 한국 취업 시장 전문 이력서/자기소개서 작성 전문가입니다.
 반드시 JSON 형식으로만 응답하세요. JSON 외의 텍스트는 절대 포함하지 마세요.
 응답은 반드시 { 로 시작해야 합니다. 마크다운 코드블록으로 감싸지 마세요.
@@ -90,7 +90,7 @@ ${input.careers.filter((c) => c.company).map((c) => `- ${c.company} / ${c.positi
       messages: [{ role: "user", content: userContent }],
     });
 
-    const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+    const responseText = message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     const jsonStr = extractJSON(responseText);
 
     let result;

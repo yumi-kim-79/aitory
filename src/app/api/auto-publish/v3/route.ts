@@ -132,7 +132,7 @@ async function selectFromRss(query: string, category: string, count: number, bat
   if (!titles.length) return [];
   try {
     const res = await client.messages.create({
-      model: 'claude-sonnet-4-20250514', max_tokens: 300,
+      model: 'claude-sonnet-5', max_tokens: 300,
       messages: [{ role: 'user', content: `뉴스 제목 중 블로그 키워드 ${count + 2}개 선정. 카테고리: ${category}\n${titles.map((t, i) => `${i + 1}. ${t}`).join('\n')}\n응답(JSON 배열만): ["키워드1","키워드2",...]` }],
     });
     const text = res.content[0].type === 'text' ? res.content[0].text : '';
@@ -258,7 +258,7 @@ excerpt는 반드시 140자 이내.${linkInstruction}
 ⚠️ JSON content 안의 줄바꿈은 \\n, 따옴표는 \\"로 이스케이프.`;
 
   const res = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-5',
     max_tokens: 2500,
     messages: [{ role: 'user', content: prompt }],
   });

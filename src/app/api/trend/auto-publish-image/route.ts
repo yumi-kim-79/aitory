@@ -62,7 +62,7 @@ async function generateImage(
     const styleHint = PHOTO_CATEGORY_STYLES[category] || 'editorial photography, modern Korean setting';
 
     const promptRes = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 300,
       messages: [{
         role: 'user',

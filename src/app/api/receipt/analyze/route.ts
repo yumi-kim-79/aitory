@@ -128,7 +128,7 @@ items는 [{"name":"공급가액","price":6818},{"name":"부가세","price":682}]
 
     console.log("[receipt] Claude Vision API 호출");
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: 2000,
       temperature: 0,
       messages: [{ role: "user", content }],
@@ -136,7 +136,7 @@ items는 [{"name":"공급가액","price":6818},{"name":"부가세","price":682}]
     console.log("[receipt] 분석 완료");
 
     const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "";
+      message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     const jsonStr = extractJSON(responseText);
 
     let result;

@@ -20,8 +20,8 @@ export async function POST(request: Request) {
     }
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
+      model: "claude-sonnet-5",
+      max_tokens: 8192,
       system: `당신은 한국 부동산 거래 전문가입니다. ${contractType || "부동산"} 계약서를 분석하여 체크리스트를 생성하세요.
 
 반드시 JSON 형식으로만 응답하세요. 응답은 반드시 { 로 시작해야 합니다.
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       messages: [{ role: "user", content: `${contractType} 계약서를 분석해주세요:\n\n${text}` }],
     });
 
-    const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+    const responseText = message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     let result;
     try { result = JSON.parse(extractJSON(responseText)); }
     catch { return Response.json({ error: "AI 응답을 처리할 수 없습니다." }, { status: 502 }); }

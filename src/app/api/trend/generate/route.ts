@@ -96,7 +96,7 @@ export async function POST(request: Request) {
 - 오늘(${today}) 기준 최신 정보로 작성. 과거 연도를 현재 시제로 쓰지 말 것.`;
 
       const message = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5",
         max_tokens: 4000,
         system: systemPrompt,
         messages: [{
@@ -107,7 +107,7 @@ ${newsTitles ? `뉴스:\n${newsTitles}\n` : ""}위 키워드/뉴스로 SEO 최�
         }],
       });
 
-      const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+      const responseText = message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
       console.log('=== Claude Raw Response ===');
       console.log(responseText.substring(0, 500));
       let result;
@@ -167,7 +167,7 @@ ${newsTitles ? `뉴스:\n${newsTitles}\n` : ""}위 키워드/뉴스로 SEO 최�
 
     // SNS
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: 1000,
       messages: [{
         role: "user",
@@ -175,7 +175,7 @@ ${newsTitles ? `뉴스:\n${newsTitles}\n` : ""}위 키워드/뉴스로 SEO 최�
       }],
     });
 
-    const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+    const responseText = message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     let result;
     try {
       result = JSON.parse(extractJSON(responseText));

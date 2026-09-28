@@ -20,7 +20,7 @@ const claude = new Anthropic();
 async function keywordToPrompt(keyword: string, category: string): Promise<string> {
   try {
     const msg = await claude.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: 150,
       temperature: 0,
       messages: [{ role: "user", content: `Create a photorealistic DALL-E 3 image prompt in English for "${keyword}". Real photograph style (NOT illustration/cartoon), news article header. Respond with ONLY the prompt, under 150 chars.` }],

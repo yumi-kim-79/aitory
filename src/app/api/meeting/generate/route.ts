@@ -4,11 +4,23 @@ export const maxDuration = 60;
 const client = new Anthropic();
 
 function extractJSON(text: string): string {
-  const f = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (f) return f[1].trim();
-  const m = text.match(/\{[\s\S]*\}/);
-  if (m) return m[0];
-  return text.trim();
+  let t = text.trim();
+  const fenced = t.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenced) t = fenced[1].trim();
+  const start = t.indexOf("{");
+  if (start === -1) return t;
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < t.length; i++) {
+    const c = t[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === "{") depth++;
+    else if (c === "}") { depth--; if (depth === 0) return t.slice(start, i + 1); }
+  }
+  return t.slice(start);
 }
 
 export async function POST(request: Request) {
@@ -66,8 +78,8 @@ export async function POST(request: Request) {
 전체 회의록은 정형화된 비즈니스 포맷으로 작성하세요.`;
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
+      model: "claude-sonnet-5",
+      max_tokens: 16000,
       system: systemPrompt,
       messages: [
         {
@@ -77,17 +89,21 @@ export async function POST(request: Request) {
       ],
     });
 
-    const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "";
+    const responseText = message.content
+      .map((b) => (b.type === "text" ? b.text : ""))
+      .join("\n")
+      .trim();
     const jsonStr = extractJSON(responseText);
 
     let result;
     try {
       result = JSON.parse(jsonStr);
     } catch {
-      console.error("JSON 파싱 실패:", responseText.slice(0, 300));
+      console.error("JSON 파싱 실패. stop:", message.stop_reason, "raw:", responseText.slice(0, 500));
       return Response.json(
-        { error: "AI 응답을 처리할 수 없습니다. 다시 시도해주세요." },
+        {
+          error: `AI 응답 처리 실패 (blocks=${message.content.length}, stop=${message.stop_reason}, len=${responseText.length}). ${responseText.slice(0, 200)}`,
+        },
         { status: 502 },
       );
     }
