@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { nextPath } from "@/lib/nextPath";
+import { authErrorMessage } from "@/lib/authErrors";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -13,6 +14,15 @@ export default function SignupPage() {
   useEffect(() => {
     if (user) router.push(nextPath());
   }, [user, router]);
+
+  // 로그인/가입 사이를 오갈 때도 돌아갈 곳(next)을 잃지 않게 합니다.
+  // 서버 렌더와 어긋나지 않도록 마운트 후에 채웁니다.
+  const [nextQ, setNextQ] = useState("");
+  useEffect(() => {
+    const n = nextPath("");
+    setNextQ(n ? `?next=${encodeURIComponent(n)}` : "");
+  }, []);
+
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,7 +43,7 @@ export default function SignupPage() {
       await signUp(email, password, name);
       router.push(nextPath());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "회원가입 실패");
+      setError(authErrorMessage(err, "회원가입에 실패했습니다. 잠시 후 다시 시도해 주세요."));
     } finally {
       setLoading(false);
     }
@@ -43,7 +53,7 @@ export default function SignupPage() {
     try {
       await signInWithGoogle();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "구글 로그인 실패");
+      setError(authErrorMessage(err, "구글 로그인에 실패했습니다."));
     }
   };
 
@@ -85,7 +95,7 @@ export default function SignupPage() {
           </form>
 
           <p className="text-center text-sm text-slate-500 mt-4">
-            이미 계정이 있으신가요? <Link href="/auth/signin" className="text-blue-600 hover:text-blue-800 font-medium">로그인</Link>
+            이미 계정이 있으신가요? <Link href={`/auth/signin${nextQ}`} className="text-blue-600 hover:text-blue-800 font-medium">로그인</Link>
           </p>
         </div>
       </div>
