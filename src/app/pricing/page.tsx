@@ -18,8 +18,8 @@ import BuyButton from "./BuyButton";
      NEXT_PUBLIC_STORE_URL_PRO
    ──────────────────────────────────────────────────────────── */
 const STORE_URL: Record<string, string> = {
-  starter: process.env.NEXT_PUBLIC_STORE_URL_STARTER || "",
-  pro: process.env.NEXT_PUBLIC_STORE_URL_PRO || "",
+  starter: process.env.NEXT_PUBLIC_STORE_URL_STARTER || "https://smartstore.naver.com/yaho_company/products/13790922554",
+  pro: process.env.NEXT_PUBLIC_STORE_URL_PRO || "https://smartstore.naver.com/yaho_company/products/13790931665",
 };
 
 const plans = [
