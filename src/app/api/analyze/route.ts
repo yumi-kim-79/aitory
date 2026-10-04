@@ -114,7 +114,7 @@ async function extractTextFromImages(
   });
 
   const ocrResponse = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-5",
     max_tokens: 8000,
     messages: [{ role: "user", content }],
   });
@@ -228,7 +228,7 @@ export async function POST(request: NextRequest) {
 
     // 분석
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: 4096,
       system: SYSTEM_PROMPT,
       messages: [
@@ -240,7 +240,7 @@ export async function POST(request: NextRequest) {
     });
 
     const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "";
+      message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     const jsonStr = extractJSON(responseText);
 
     let analysis;

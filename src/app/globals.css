@@ -1,19 +1,94 @@
 @import "tailwindcss";
 
+/* ============================================================
+   Aitory — 앱몬스터 스타일 다크 테마 리스킨
+   (기존 slate 라이트 UI를 전역 오버라이드로 다크로 변환)
+   ============================================================ */
 :root {
-  --background: #f8fafc;
-  --foreground: #1e293b;
+  --bg: #0a0e14;
+  --bg-elev: #111722;
+  --bg-card: #131b28;
+  --bg-soft: #1a2333;
+  --ink: #eef4fb;
+  --ink-dim: #8a99ad;
+  --ink-faint: #56657a;
+  --cyan: #22d3ee;
+  --cyan-hi: #67e8f9;
+  --cyan-ink: #04141a;
+  --line: rgba(138, 153, 173, 0.14);
+  --line-2: rgba(138, 153, 173, 0.24);
+  --font-display: var(--font-space), "Noto Sans KR", sans-serif;
+  --font-body: var(--font-noto), "Noto Sans KR", sans-serif;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
 }
 
+html { background: var(--bg); }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }
+h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; }
+::placeholder { color: var(--ink-faint); }
+::selection { background: rgba(34, 211, 238, 0.28); }
+
+/* ---------- 배경(면) ---------- */
+.bg-white { background-color: var(--bg-card); }
+.bg-slate-50 { background-color: var(--bg-elev); }
+.bg-slate-100 { background-color: var(--bg-soft); }
+.bg-slate-200 { background-color: var(--bg-soft); }
+/* 기본(짙은) 버튼 → 시안 pill */
+.bg-slate-900 { background-color: var(--cyan); color: var(--cyan-ink); }
+.bg-slate-900.rounded-full { color: var(--cyan-ink); }
+
+/* ---------- 글자 ---------- */
+.text-slate-900, .text-slate-800, .text-slate-700 { color: var(--ink); }
+.text-slate-600, .text-slate-500 { color: var(--ink-dim); }
+.text-slate-400 { color: var(--ink-faint); }
+
+/* ---------- 테두리 ---------- */
+.border-slate-100, .border-slate-200, .border-slate-300 { border-color: var(--line); }
+.border-slate-900 { border-color: var(--cyan); }
+.divide-slate-100 > * + *, .divide-slate-200 > * + * { border-color: var(--line); }
+
+/* ---------- 포인트(파랑 → 시안) ---------- */
+.text-blue-600, .text-blue-700, .text-blue-800 { color: var(--cyan); }
+.bg-blue-600 { background-color: var(--cyan); color: var(--cyan-ink); }
+.bg-blue-50 { background-color: rgba(34, 211, 238, 0.10); }
+.text-blue-700.bg-blue-50, .bg-blue-50 .text-blue-700 { color: var(--cyan-hi); }
+.border-blue-100, .border-blue-500 { border-color: rgba(34, 211, 238, 0.30); }
+.ring-blue-500 { --tw-ring-color: var(--cyan); }
+
+/* ---------- 스피너/로딩 ---------- */
+.border-t-slate-900, .border-t-slate-600 { border-top-color: var(--cyan); }
+
+/* ---------- 그림자(다크에서 은은하게) ---------- */
+.shadow-lg { box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45); }
+.shadow-xl { box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55); }
+
+/* ---------- 입력 포커스(시안) ---------- */
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.35);
+}
+
+/* ---------- hover 상태 ---------- */
+.hover\:bg-slate-50:hover { background-color: var(--bg-soft); }
+.hover\:bg-slate-100:hover { background-color: var(--bg-soft); }
+.hover\:bg-slate-200:hover { background-color: #223047; }
+.hover\:bg-slate-800:hover { background-color: var(--cyan-hi); }
+.hover\:bg-blue-700:hover { background-color: var(--cyan-hi); }
+.hover\:text-slate-800:hover, .hover\:text-slate-900:hover { color: var(--ink); }
+.hover\:text-blue-600:hover, .hover\:text-blue-800:hover { color: var(--cyan-hi); }
+.hover\:bg-red-50:hover { background-color: rgba(239, 68, 68, 0.12); }
+
+/* ---------- disabled ---------- */
+.disabled\:bg-slate-300:disabled { background-color: var(--bg-soft); color: var(--ink-faint); }
+.disabled\:bg-slate-50:disabled { background-color: var(--bg-elev); }
+.disabled\:text-slate-400:disabled { color: var(--ink-faint); }

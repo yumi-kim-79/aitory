@@ -48,7 +48,7 @@ const MEDIA_TYPES: Record<string, "image/jpeg" | "image/png" | "image/webp"> =
 async function ocrImage(buffer: Buffer, ext: string): Promise<string> {
   const mediaType = MEDIA_TYPES[ext] || "image/jpeg";
   const res = await client.messages.create({
-    model: "claude-sonnet-4-20250514",
+    model: "claude-sonnet-5",
     max_tokens: 4000,
     messages: [
       {
@@ -60,7 +60,7 @@ async function ocrImage(buffer: Buffer, ext: string): Promise<string> {
       },
     ],
   });
-  return res.content[0].type === "text" ? res.content[0].text : "";
+  return res.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
 }
 
 async function extractText(file: File): Promise<string> {
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
     }
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: 8000,
       system: buildSystemPrompt(sourceLang, outputOptions),
       messages: [
@@ -156,7 +156,7 @@ export async function POST(request: Request) {
     });
 
     const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "";
+      message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     const jsonStr = extractJSON(responseText);
 
     let result;

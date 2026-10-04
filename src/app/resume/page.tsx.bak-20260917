@@ -36,9 +36,7 @@ export default function ResumePage() {
   const [careers, setCareers] = useState<Career[]>([
     { company: "", position: "", period: "", description: "" },
   ]);
-  const [skillList, setSkillList] = useState<string[]>([]);
-  const [skillInput, setSkillInput] = useState("");
-  const [photo, setPhoto] = useState<string>("");
+  const [skills, setSkills] = useState("");
   const [targetJob, setTargetJob] = useState("");
   const [keywords, setKeywords] = useState("");
   const [existingText, setExistingText] = useState("");
@@ -53,22 +51,6 @@ export default function ResumePage() {
     setCareers((p) => p.filter((_, j) => j !== i));
   const updateCareer = (i: number, field: keyof Career, value: string) =>
     setCareers((p) => { const n = [...p]; n[i] = { ...n[i], [field]: value }; return n; });
-
-  const addSkill = () => {
-    const v = skillInput.trim();
-    if (!v) return;
-    setSkillList((p) => (p.includes(v) ? p : [...p, v]));
-    setSkillInput("");
-  };
-  const removeSkill = (i: number) => setSkillList((p) => p.filter((_, j) => j !== i));
-
-  const handlePhoto = (file: File) => {
-    if (!file.type.startsWith("image/")) { setError("이미지 파일만 첨부할 수 있습니다."); return; }
-    if (file.size > 5 * 1024 * 1024) { setError("5MB 이하 이미지만 첨부할 수 있습니다."); return; }
-    const reader = new FileReader();
-    reader.onload = () => setPhoto(reader.result as string);
-    reader.readAsDataURL(file);
-  };
 
   const handleFileUpload = async (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
@@ -95,7 +77,7 @@ export default function ResumePage() {
         body: JSON.stringify({
           name, email, phone, address, school, major, gradYear,
           careers: careers.filter((c) => c.company),
-          skills: skillList.join(", "), targetJob, keywords, existingText: tab === "upload" ? existingText : "",
+          skills, targetJob, keywords, existingText: tab === "upload" ? existingText : "",
         }),
       });
       const data = await res.json();
@@ -117,7 +99,7 @@ export default function ResumePage() {
     );
   }
 
-  if (result) return <ResultScreen result={result} photo={photo} onReset={() => setResult(null)} />;
+  if (result) return <ResultScreen result={result} onReset={() => setResult(null)} />;
 
   return (
     <div className="flex flex-col flex-1 items-center px-4 py-16">
@@ -149,26 +131,6 @@ export default function ResumePage() {
             </div>
           ) : (
             <>
-              {/* 프로필 사진 */}
-              <div className="flex items-center gap-4">
-                <div className="w-24 h-32 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center shrink-0">
-                  {photo ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photo} alt="프로필 사진" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-slate-300 text-3xl">👤</span>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <label className="inline-block px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-sm font-medium cursor-pointer hover:bg-slate-200">
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhoto(f); }} />
-                    사진 첨부
-                  </label>
-                  {photo && <button type="button" onClick={() => setPhoto("")} className="ml-2 text-sm text-slate-400 hover:text-red-500">삭제</button>}
-                  <p className="text-xs text-slate-400">증명사진 권장 (3:4, 5MB 이하)</p>
-                </div>
-              </div>
-
               {/* 기본 정보 */}
               <fieldset className="border border-slate-200 rounded-xl p-4 space-y-3">
                 <legend className="text-sm font-medium text-slate-700 px-2">기본 정보</legend>
@@ -209,24 +171,8 @@ export default function ResumePage() {
                 <button onClick={addCareer} className="text-sm text-blue-600 hover:text-blue-800 font-medium">+ 경력 추가</button>
               </fieldset>
 
-              {/* 자격증/스킬 (구조화) */}
-              <div>
-                <label className="text-sm font-medium text-slate-700 mb-1 block">자격증 / 스킬 <span className="text-slate-400 font-normal">(직접 입력 후 추가)</span></label>
-                <div className="flex gap-2">
-                  <input value={skillInput} onChange={(e) => setSkillInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addSkill(); } }} placeholder="예: 정보처리기사, React, 운전면허 1종" className="flex-1 p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
-                  <button type="button" onClick={addSkill} className="px-4 bg-slate-100 text-slate-700 rounded-xl text-sm font-medium hover:bg-slate-200 shrink-0">추가</button>
-                </div>
-                {skillList.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {skillList.map((sk, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm">
-                        {sk}
-                        <button type="button" onClick={() => removeSkill(i)} className="text-blue-400 hover:text-blue-700">&times;</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {/* 스킬 + 지원직무 */}
+              <div><label className="text-sm font-medium text-slate-700 mb-1 block">스킬/자격증</label><input value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="예: React, TypeScript, AWS, 정보처리기사" className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="text-sm font-medium text-slate-700 mb-1 block">지원 직무 *</label><input value={targetJob} onChange={(e) => setTargetJob(e.target.value)} placeholder="예: 프론트엔드 개발자" className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" /></div>
                 <div><label className="text-sm font-medium text-slate-700 mb-1 block">키워드</label><input value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="강조하고 싶은 키워드" className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" /></div>
@@ -257,7 +203,7 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
-function ResultScreen({ result, photo, onReset }: { result: ResumeResult; photo?: string; onReset: () => void }) {
+function ResultScreen({ result, onReset }: { result: ResumeResult; onReset: () => void }) {
   const [activeTab, setActiveTab] = useState<"resume" | "cover">("resume");
   const r = result.resume;
 
@@ -293,15 +239,9 @@ function ResultScreen({ result, photo, onReset }: { result: ResumeResult; photo?
               <CopyBtn text={resumeText} />
             </div>
             <div className="space-y-4 text-sm">
-              <div className="flex items-center gap-4">
-                {photo && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photo} alt="프로필 사진" className="w-20 h-26 rounded-lg object-cover border border-slate-200 shrink-0" style={{ height: "6.5rem" }} />
-                )}
-                <div>
-                  <p className="text-2xl font-bold text-slate-900">{r.name}</p>
-                  <p className="text-slate-500">{[r.email, r.phone, r.address].filter(Boolean).join(" · ")}</p>
-                </div>
+              <div>
+                <p className="text-2xl font-bold text-slate-900">{r.name}</p>
+                <p className="text-slate-500">{[r.email, r.phone, r.address].filter(Boolean).join(" · ")}</p>
               </div>
               {r.summary && <p className="text-slate-700 italic border-l-2 border-slate-300 pl-3">{r.summary}</p>}
               {r.education && <div><p className="font-semibold text-slate-800 mb-1">학력</p><p className="text-slate-700">{r.education}</p></div>}

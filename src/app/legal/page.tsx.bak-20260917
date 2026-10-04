@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useAuth } from "@/contexts/AuthContext";
-import { transcribeAudio, getAudioDuration, audioCredits } from "@/lib/audio-transcribe";
 
 type MainTab = "document" | "consult";
 
@@ -161,28 +159,6 @@ function ConsultTab() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ConsultResult | null>(null);
   const [error, setError] = useState("");
-  const [transcribing, setTranscribing] = useState(false);
-  const { user, getIdToken, refreshUser } = useAuth();
-  const [progress, setProgress] = useState<string | null>(null);
-
-  const handleAudio = async (file: File) => {
-    if (!user) { setError("음성 변환은 로그인 후 이용할 수 있습니다."); return; }
-    const duration = await getAudioDuration(file);
-    const cost = audioCredits(duration);
-    if ((user.credits || 0) < cost) { setError(`크레딧이 부족합니다. (필요 ${cost} / 보유 ${user.credits})`); return; }
-    setError(""); setTranscribing(true); setProgress(null);
-    try {
-      const txt = await transcribeAudio(file, (msg, pct) => setProgress(`${msg} ${pct}%`));
-      const token = await getIdToken();
-      await fetch("/api/trend/deduct-credits", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ amount: cost, service: "법률상담 음성변환" }) });
-      refreshUser();
-      setSituation((prev) => (prev ? prev + "\n" : "") + txt);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "음성 변환에 실패했습니다.");
-    } finally {
-      setTranscribing(false); setProgress(null);
-    }
-  };
 
   const handleSubmit = async () => {
     if (!situation.trim()) { setError("상황을 설명해주세요."); return; }
@@ -262,13 +238,7 @@ function ConsultTab() {
       </div>
 
       <div>
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-medium text-slate-700">상황 설명 *</p>
-          <label className={`text-xs font-medium px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${transcribing ? "text-blue-600 border-blue-200" : "text-slate-600 border-slate-200 hover:bg-slate-50"}`}>
-            <input type="file" accept=".mp3,.m4a,.wav,.mpeg,.mpga,.webm,.ogg,.flac,audio/*" className="hidden" disabled={transcribing} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleAudio(f); }} />
-            {transcribing ? (progress || "변환 중...") : "🎙️ 음성으로 설명"}
-          </label>
-        </div>
+        <p className="text-sm font-medium text-slate-700 mb-1">상황 설명 *</p>
         <textarea value={situation} onChange={(e) => setSituation(e.target.value)} placeholder="어떤 법률 문제가 있는지 자유롭게 설명해주세요.&#10;&#10;예: 회사에서 3개월째 월급을 안 주고 있습니다. 근로계약서는 작성했고..." className="w-full h-40 p-4 border border-slate-300 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-400" />
       </div>
 

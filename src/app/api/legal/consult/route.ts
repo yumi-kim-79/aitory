@@ -24,8 +24,8 @@ export async function POST(request: Request) {
     }
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
+      model: "claude-sonnet-5",
+      max_tokens: 8192,
       system: `당신은 한국 법률 전문 AI 상담사입니다.
 사용자의 법률 상황을 분석하고 일반적인 법률 정보를 제공해주세요.
 
@@ -57,7 +57,7 @@ ${situation}`,
       ],
     });
 
-    const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+    const responseText = message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     let result;
     try {
       result = JSON.parse(extractJSON(responseText));

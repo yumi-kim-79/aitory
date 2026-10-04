@@ -36,8 +36,8 @@ export async function POST(request: Request) {
     const menuList = items.filter((i) => i.name).map((i) => `${i.name} (${i.price}) — ${i.desc || "설명 없음"}`).join("\n");
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
+      model: "claude-sonnet-5",
+      max_tokens: 8192,
       system: `당신은 외식업 메뉴 마케팅 전문가입니다.
 메뉴 항목을 각 플랫폼에 맞게 매력적으로 재작성해주세요.
 
@@ -70,7 +70,7 @@ ${platSpecs}
       ],
     });
 
-    const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+    const responseText = message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     let result;
     try { result = JSON.parse(extractJSON(responseText)); }
     catch { return Response.json({ error: "AI 응답을 처리할 수 없습니다." }, { status: 502 }); }

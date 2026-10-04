@@ -220,7 +220,7 @@ ${criteriaText}
 응답 형식(JSON 배열만): [${Array.from({ length: count + 2 }, (_, i) => `"키워드${i + 1}"`).join(', ')}]`;
 
     const res = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 300,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -355,7 +355,7 @@ tags (정확히 20개, 한글+영문 혼합):
 ⚠️ JSON content 안의 줄바꿈은 \\n으로 이스케이프, 따옴표는 \\"로 이스케이프할 것.`;
 
   const res = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-5',
     max_tokens: 3500, // 2500 → 3500 (20 태그 + 2000자+ 본문)
     messages: [{ role: 'user', content: prompt }],
   });
@@ -442,7 +442,7 @@ tags (정확히 20개, 한글+영문 혼합):
 async function generateTweetImage(keyword: string, category: string): Promise<Buffer | null> {
   try {
     const promptRes = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 200,
       messages: [{
         role: 'user',
@@ -546,7 +546,7 @@ async function generateLongtailKeyword(mainKeyword: string, category: string): P
 
 응답: 키워드 한 개만, 다른 텍스트 없이.`;
     const res = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-5',
       max_tokens: 50,
       messages: [{ role: 'user', content: prompt }],
     });

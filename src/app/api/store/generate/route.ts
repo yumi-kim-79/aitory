@@ -100,8 +100,8 @@ ${platformSpecs}
 상품명은 검색에 잘 걸리도록 키워드를 포함하되 자연스럽게 구성하세요.`;
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
+      model: "claude-sonnet-5",
+      max_tokens: 8192,
       system: systemPrompt,
       messages: [
         {
@@ -112,7 +112,7 @@ ${platformSpecs}
     });
 
     const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "";
+      message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     const jsonStr = extractJSON(responseText);
 
     let result;

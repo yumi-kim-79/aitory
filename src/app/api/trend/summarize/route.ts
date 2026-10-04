@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       .join("\n");
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: 2000,
       temperature: 0.7,
       system: `당신은 한국 SNS 콘텐츠 전문가입니다. 반드시 JSON 형식으로만 응답하세요. 응답은 반드시 { 로 시작해야 합니다.
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
       ],
     });
 
-    const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+    const responseText = message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     let result;
     try {
       result = JSON.parse(extractJSON(responseText));

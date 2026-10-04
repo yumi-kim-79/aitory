@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { nextPath } from "@/lib/nextPath";
 
 export default function SigninPage() {
   const router = useRouter();
@@ -11,7 +12,7 @@ export default function SigninPage() {
 
   // 이미 로그인 상태면 홈으로 이동
   useEffect(() => {
-    if (user) router.push("/");
+    if (user) router.push(nextPath());
   }, [user, router]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +26,7 @@ export default function SigninPage() {
     setLoading(true);
     try {
       await signIn(email, password);
-      router.push("/");
+      router.push(nextPath());
     } catch (err) {
       setError(err instanceof Error ? err.message : "로그인 실패");
     } finally {
@@ -72,6 +73,9 @@ export default function SigninPage() {
             <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="이메일" className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
             <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="비밀번호" className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
 
+            <div className="text-right -mt-1">
+              <Link href="/auth/reset" className="text-xs text-slate-500 hover:text-blue-600">비밀번호를 잊으셨나요?</Link>
+            </div>
             {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
             <button type="submit" disabled={loading} className="w-full py-3 bg-slate-900 text-white rounded-xl font-semibold hover:bg-slate-800 disabled:bg-slate-300 transition-colors">

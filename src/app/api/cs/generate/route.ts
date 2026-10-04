@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     }
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: 2000,
       system: `당신은 한국 이커머스 쇼핑몰 CS 전문가입니다.
 고객 문의에 대한 판매자 답변을 작성해주세요.
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       ],
     });
 
-    const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+    const responseText = message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     let result;
     try {
       result = JSON.parse(extractJSON(responseText));

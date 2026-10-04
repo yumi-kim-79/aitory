@@ -15,27 +15,8 @@ import {
 const DOC_TYPES = ["견적서", "인보이스", "발주서", "납품확인서"];
 const PAY_TERMS = ["즉시", "7일", "14일", "30일", "협의"];
 
-// 문서 종류별 라벨/필드 구성
-type DocMeta = {
-  sub: string;
-  senderLabel: string;
-  clientLabel: string;
-  dateLabel: string;
-  showPayTerms: boolean;
-  showPayAI: boolean;
-  itemsLabel: string;
-  sigWord: string;
-};
-const DOC_META: Record<string, DocMeta> = {
-  "견적서": { sub: "전문적인 견적서를 자동으로 생성합니다", senderLabel: "내 정보 (발신)", clientLabel: "고객 정보 (수신)", dateLabel: "유효기간", showPayTerms: true, showPayAI: true, itemsLabel: "견적 항목", sigWord: "(인)" },
-  "인보이스": { sub: "결제 청구용 인보이스를 생성합니다", senderLabel: "공급자 (발신)", clientLabel: "구매자 (수신)", dateLabel: "결제 기한", showPayTerms: true, showPayAI: true, itemsLabel: "청구 항목", sigWord: "(인)" },
-  "발주서": { sub: "공급처에 보내는 발주서를 생성합니다", senderLabel: "발주처 (발신)", clientLabel: "공급처 (수신)", dateLabel: "납품 요청일", showPayTerms: true, showPayAI: false, itemsLabel: "발주 품목", sigWord: "(직인)" },
-  "납품확인서": { sub: "납품 완료를 확인하는 문서를 생성합니다", senderLabel: "공급자 (발신)", clientLabel: "인수자 (수신)", dateLabel: "납품일", showPayTerms: false, showPayAI: false, itemsLabel: "납품 품목", sigWord: "(인수확인)" },
-};
-
 export default function InvoicePage() {
   const [docType, setDocType] = useState("견적서");
-  const meta = DOC_META[docType];
   const [sender, setSender] = useState<SenderInfo>({
     companyName: "", bizNumber: "", phone: "", email: "", address: "",
   });
@@ -85,16 +66,13 @@ export default function InvoicePage() {
 
   const handleSubmit = async () => {
     if (!sender.companyName.trim()) { setError("상호명을 입력해주세요."); return; }
-    if (!client.clientName.trim()) { setError("상대방(수신) 상호를 입력해주세요."); return; }
+    if (!client.clientName.trim()) { setError("고객사명을 입력해주세요."); return; }
     if (items.every((i) => !i.name.trim())) { setError("항목을 1개 이상 입력해주세요."); return; }
 
     if (saveSenderChecked) saveSenderInfo(sender);
     setError("");
     setLoading(true);
     setResult(null);
-
-    // 납품확인서/발주서는 결제 안내 문구 미사용
-    const usePayment = meta.showPayAI && aiPayment;
 
     try {
       const res = await fetch("/api/invoice/generate", {
@@ -110,7 +88,7 @@ export default function InvoicePage() {
         subtotal, tax, total,
         validUntil, paymentTerms: payTerms, memo,
         greeting: aiGreeting ? data.greeting || "" : "",
-        paymentGuide: usePayment ? data.payment_guide || "" : "",
+        paymentGuide: aiPayment ? data.payment_guide || "" : "",
         closing: aiClosing ? data.closing || "" : "",
       };
 
@@ -136,8 +114,8 @@ export default function InvoicePage() {
       <div className="flex flex-col flex-1 items-center justify-center px-4">
         <div className="text-center">
           <div className="inline-block w-16 h-16 border-4 border-slate-200 border-t-slate-900 rounded-full animate-spin mb-6" />
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">{docType}를 생성하고 있어요...</h2>
-          <p className="text-slate-500">AI가 문서에 맞는 전문 문구를 작성합니다</p>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">견적서를 생성하고 있어요...</h2>
+          <p className="text-slate-500">AI가 전문적인 문구를 작성합니다</p>
         </div>
       </div>
     );
@@ -152,15 +130,15 @@ export default function InvoicePage() {
       <div className="w-full max-w-2xl">
         <Link href="/" className="inline-flex items-center gap-1 text-slate-500 hover:text-slate-800 text-sm mb-6 transition-colors">&larr; 홈으로</Link>
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-slate-900 mb-3">AI {docType}</h1>
-          <p className="text-lg text-slate-500">{meta.sub}</p>
+          <h1 className="text-4xl font-bold text-slate-900 mb-3">AI 견적서/인보이스</h1>
+          <p className="text-lg text-slate-500">전문적인 견적서를 자동으로 생성합니다</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 space-y-6">
           {/* 문서 종류 */}
           <div>
             <label className="text-sm font-medium text-slate-700 mb-2 block">문서 종류</label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2">
               {DOC_TYPES.map((t) => (
                 <button key={t} onClick={() => setDocType(t)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${docType === t ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{t}</button>
               ))}
@@ -169,7 +147,7 @@ export default function InvoicePage() {
 
           {/* 발신자 */}
           <fieldset className="border border-slate-200 rounded-xl p-4 space-y-3">
-            <legend className="text-sm font-medium text-slate-700 px-2">{meta.senderLabel}</legend>
+            <legend className="text-sm font-medium text-slate-700 px-2">내 정보 (발신)</legend>
             <input value={sender.companyName} onChange={(e) => setSender({ ...sender, companyName: e.target.value })} placeholder="상호명/이름 *" className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
             <div className="grid grid-cols-2 gap-3">
               <input value={sender.bizNumber} onChange={(e) => setSender({ ...sender, bizNumber: e.target.value })} placeholder="사업자번호 (선택)" className="p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
@@ -187,8 +165,8 @@ export default function InvoicePage() {
 
           {/* 수신자 */}
           <fieldset className="border border-slate-200 rounded-xl p-4 space-y-3">
-            <legend className="text-sm font-medium text-slate-700 px-2">{meta.clientLabel}</legend>
-            <input value={client.clientName} onChange={(e) => setClient({ ...client, clientName: e.target.value })} placeholder="상호명 *" className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
+            <legend className="text-sm font-medium text-slate-700 px-2">고객 정보 (수신)</legend>
+            <input value={client.clientName} onChange={(e) => setClient({ ...client, clientName: e.target.value })} placeholder="고객사명 *" className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
             <div className="grid grid-cols-2 gap-3">
               <input value={client.contactPerson} onChange={(e) => setClient({ ...client, contactPerson: e.target.value })} placeholder="담당자명" className="p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
               <input value={client.phone} onChange={(e) => setClient({ ...client, phone: e.target.value })} placeholder="연락처" className="p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
@@ -201,7 +179,7 @@ export default function InvoicePage() {
 
           {/* 항목 */}
           <div>
-            <label className="text-sm font-medium text-slate-700 mb-2 block">{meta.itemsLabel}</label>
+            <label className="text-sm font-medium text-slate-700 mb-2 block">작업 항목</label>
             <div className="space-y-3">
               {items.map((item, idx) => (
                 <div key={idx} className="flex gap-2 items-start">
@@ -223,22 +201,20 @@ export default function InvoicePage() {
             </div>
           </div>
 
-          {/* 날짜 + 결제조건 */}
+          {/* 추가 */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-slate-700 mb-2 block">{meta.dateLabel}</label>
+              <label className="text-sm font-medium text-slate-700 mb-2 block">유효기간</label>
               <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
             </div>
-            {meta.showPayTerms && (
-              <div>
-                <label className="text-sm font-medium text-slate-700 mb-2 block">결제 조건</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {PAY_TERMS.map((t) => (
-                    <button key={t} onClick={() => setPayTerms(t)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${payTerms === t ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{t}</button>
-                  ))}
-                </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 mb-2 block">결제 조건</label>
+              <div className="flex flex-wrap gap-1.5">
+                {PAY_TERMS.map((t) => (
+                  <button key={t} onClick={() => setPayTerms(t)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${payTerms === t ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{t}</button>
+                ))}
               </div>
-            )}
+            </div>
           </div>
 
           <textarea value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="특이사항/메모" className="w-full h-20 p-3 border border-slate-300 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-400" />
@@ -246,16 +222,14 @@ export default function InvoicePage() {
           {/* AI 옵션 */}
           <div className="flex flex-wrap gap-4 text-sm">
             <label className="flex items-center gap-2 text-slate-600"><input type="checkbox" checked={aiGreeting} onChange={(e) => setAiGreeting(e.target.checked)} className="rounded" />인사말 자동 생성</label>
-            {meta.showPayAI && (
-              <label className="flex items-center gap-2 text-slate-600"><input type="checkbox" checked={aiPayment} onChange={(e) => setAiPayment(e.target.checked)} className="rounded" />결제 안내 자동 생성</label>
-            )}
-            <label className="flex items-center gap-2 text-slate-600"><input type="checkbox" checked={aiClosing} onChange={(e) => setAiClosing(e.target.checked)} className="rounded" />마무리 문구 자동 생성</label>
+            <label className="flex items-center gap-2 text-slate-600"><input type="checkbox" checked={aiPayment} onChange={(e) => setAiPayment(e.target.checked)} className="rounded" />결제 안내 자동 생성</label>
+            <label className="flex items-center gap-2 text-slate-600"><input type="checkbox" checked={aiClosing} onChange={(e) => setAiClosing(e.target.checked)} className="rounded" />서명 문구 자동 생성</label>
           </div>
 
           {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
           <button onClick={handleSubmit} disabled={!sender.companyName.trim() || !client.clientName.trim()} className="w-full py-4 bg-slate-900 text-white rounded-xl font-semibold text-lg hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
-            {docType} 생성하기
+            견적서 생성하기
             <span className="text-sm bg-white/20 px-2 py-0.5 rounded">2 크레딧</span>
           </button>
         </div>
@@ -269,7 +243,6 @@ export default function InvoicePage() {
 function ResultScreen({ data, onReset }: { data: InvoiceData; onReset: () => void }) {
   const [downloadingWord, setDownloadingWord] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
-  const meta = DOC_META[data.docType] || DOC_META["견적서"];
 
   const download = async (endpoint: string, filename: string, setLoading: (b: boolean) => void) => {
     setLoading(true);
@@ -306,26 +279,22 @@ function ResultScreen({ data, onReset }: { data: InvoiceData; onReset: () => voi
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8">
           <h2 className="text-2xl font-bold text-center text-slate-900 mb-6">{data.docType}</h2>
 
-          <div className="grid grid-cols-2 gap-6 mb-4 text-sm">
+          <div className="grid grid-cols-2 gap-6 mb-6 text-sm">
             <div>
-              <p className="text-blue-600 font-medium mb-1">{meta.senderLabel.replace(/\s*\(.*\)/, "")}</p>
+              <p className="text-blue-600 font-medium mb-1">발신</p>
               <p className="font-semibold">{data.sender.companyName}</p>
               {data.sender.bizNumber && <p className="text-slate-500">{data.sender.bizNumber}</p>}
               <p className="text-slate-500">{data.sender.phone}</p>
               <p className="text-slate-500">{data.sender.email}</p>
             </div>
             <div>
-              <p className="text-blue-600 font-medium mb-1">{meta.clientLabel.replace(/\s*\(.*\)/, "")}</p>
+              <p className="text-blue-600 font-medium mb-1">수신</p>
               <p className="font-semibold">{data.client.clientName}</p>
               {data.client.contactPerson && <p className="text-slate-500">{data.client.contactPerson}</p>}
               <p className="text-slate-500">{data.client.phone}</p>
               <p className="text-slate-500">{data.client.email}</p>
             </div>
           </div>
-
-          {data.validUntil && (
-            <p className="text-sm text-slate-500 mb-4">{meta.dateLabel}: <span className="text-slate-700 font-medium">{data.validUntil}</span></p>
-          )}
 
           {data.greeting && <p className="text-sm text-slate-600 mb-4 italic">{data.greeting}</p>}
 
@@ -360,7 +329,7 @@ function ResultScreen({ data, onReset }: { data: InvoiceData; onReset: () => voi
           {data.paymentGuide && <p className="text-sm text-slate-600 mb-2">{data.paymentGuide}</p>}
           {data.closing && <p className="text-sm text-slate-600 mb-4">{data.closing}</p>}
 
-          <p className="text-right text-sm font-medium text-slate-900">{data.sender.companyName} <span className="text-blue-600">{meta.sigWord}</span></p>
+          <p className="text-right text-sm font-medium text-slate-900">{data.sender.companyName} <span className="text-blue-600">(인)</span></p>
         </div>
 
         {/* 다운로드 + 이메일 */}

@@ -3,8 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { saveMeeting, type MeetingRecord, type ActionItem } from "@/lib/meeting-store";
-import { useAuth } from "@/contexts/AuthContext";
-import { transcribeAudio, getAudioDuration, audioCredits, isAudioFile, type ProgressFn } from "@/lib/audio-transcribe";
 
 type Tab = "text" | "file";
 const TYPES = ["정기회의", "킥오프", "브레인스토밍", "보고", "협의", "기타"];
@@ -30,30 +28,12 @@ export default function MeetingPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MeetingResult | null>(null);
   const [error, setError] = useState("");
-  const [transcribing, setTranscribing] = useState(false);
-  const { user, getIdToken, refreshUser } = useAuth();
-  const [pendingAudio, setPendingAudio] = useState<{ file: File; duration: number; credits: number } | null>(null);
-  const [progress, setProgress] = useState<{ msg: string; pct: number } | null>(null);
-
-  const deductCredits = async (amount: number, service: string) => {
-    const token = await getIdToken();
-    if (!token) return;
-    try {
-      await fetch("/api/trend/deduct-credits", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ amount, service }),
-      });
-      refreshUser();
-    } catch {}
-  };
 
   const toggleOpt = (o: string) =>
     setOutputOpts((p) => (p.includes(o) ? p.filter((x) => x !== o) : [...p, o]));
 
   const handleFileUpload = async (file: File) => {
-    const ext = file.name.split(".").pop()?.toLowerCase() || "";
-    setError("");
+    const ext = file.name.split(".").pop()?.toLowerCase();
     if (ext === "txt") {
       setText(await file.text());
     } else if (ext === "docx") {
@@ -61,41 +41,12 @@ export default function MeetingPage() {
       const buffer = Buffer.from(await file.arrayBuffer());
       const r = await mammoth.extractRawText({ buffer });
       setText(r.value);
-    } else if (isAudioFile(file.name)) {
-      const duration = await getAudioDuration(file);
-      setPendingAudio({ file, duration, credits: audioCredits(duration) });
-    } else {
-      setError("지원하지 않는 파일 형식입니다.");
-    }
-  };
-
-  const startTranscription = async () => {
-    if (!pendingAudio) return;
-    if (!user) { setError("음성 변환은 로그인 후 이용할 수 있습니다."); return; }
-    const cost = pendingAudio.credits;
-    if ((user.credits || 0) < cost) { setError(`크레딧이 부족합니다. (필요 ${cost} / 보유 ${user.credits})`); return; }
-    setError("");
-    setTranscribing(true);
-    setProgress({ msg: "준비 중...", pct: 0 });
-    try {
-      const onProg: ProgressFn = (msg, pct) => setProgress({ msg, pct });
-      const txt = await transcribeAudio(pendingAudio.file, onProg);
-      await deductCredits(cost, "회의록 음성변환");
-      setText((prev) => (prev ? prev + "\n" : "") + txt);
-      setPendingAudio(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "음성 변환에 실패했습니다.");
-    } finally {
-      setTranscribing(false);
-      setProgress(null);
     }
   };
 
   const handleSubmit = async () => {
     if (!text.trim()) { setError("회의 내용을 입력해주세요."); return; }
     if (outputOpts.length === 0) { setError("출력 옵션을 1개 이상 선택해주세요."); return; }
-    if (!user) { setError("회의록 생성은 로그인 후 이용할 수 있습니다."); return; }
-    if ((user.credits || 0) < 2) { setError("크레딧이 부족합니다. (회의록 생성 2 크레딧)"); return; }
     setError("");
     setLoading(true);
     setResult(null);
@@ -117,7 +68,6 @@ export default function MeetingPage() {
       if (!res.ok) { setError(data.error || "생성 오류"); }
       else {
         setResult(data);
-        deductCredits(2, "회의록 생성");
         saveMeeting({
           id: crypto.randomUUID(),
           title: title || "회의록",
@@ -185,53 +135,17 @@ export default function MeetingPage() {
           )}
 
           {tab === "file" && (
-            <div className="space-y-3">
-              {!pendingAudio && !transcribing && (
-                <label className="block border-2 border-dashed border-slate-300 rounded-xl p-10 text-center cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition-colors">
-                  <input type="file" accept=".txt,.docx,.mp3,.m4a,.wav,.mpeg,.mpga,.webm,.ogg,.flac,.aac,.mp4,audio/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }} />
-                  {text ? (
-                    <p className="text-emerald-700 font-medium">불러오기 완료 ({text.length}자) · 다시 올리려면 클릭</p>
-                  ) : (
-                    <>
-                      <div className="text-4xl mb-3">🎙️</div>
-                      <p className="text-slate-600 font-medium">회의 녹음 또는 .txt·.docx 업로드</p>
-                      <p className="text-slate-400 text-sm mt-1">mp3·m4a·wav 등 · 30분~1시간 긴 녹음도 가능합니다</p>
-                    </>
-                  )}
-                </label>
+            <label className="block border-2 border-dashed border-slate-300 rounded-xl p-10 text-center cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition-colors">
+              <input type="file" accept=".txt,.docx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }} />
+              {text ? (
+                <p className="text-emerald-700 font-medium">파일 로드 완료 ({text.length}자)</p>
+              ) : (
+                <>
+                  <div className="text-4xl mb-3">📄</div>
+                  <p className="text-slate-600 font-medium">.txt 또는 .docx 파일 업로드</p>
+                </>
               )}
-
-              {pendingAudio && !transcribing && (
-                <div className="border border-blue-200 bg-blue-50 rounded-xl p-4">
-                  <p className="text-sm font-medium text-slate-800 mb-1">🎙️ {pendingAudio.file.name}</p>
-                  <p className="text-sm text-slate-600 mb-3">
-                    길이 약 {Math.max(1, Math.round(pendingAudio.duration / 60))}분 · 예상 <b className="text-blue-700">{pendingAudio.credits} 크레딧</b> 소모 (10분당 1크레딧)
-                  </p>
-                  {!user && <p className="text-xs text-red-500 mb-2">로그인 후 이용할 수 있습니다.</p>}
-                  <div className="flex gap-2">
-                    <button onClick={startTranscription} disabled={!user} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800 disabled:bg-slate-300">변환 시작</button>
-                    <button onClick={() => setPendingAudio(null)} className="px-4 py-2 bg-white text-slate-600 rounded-lg text-sm font-medium border border-slate-200 hover:bg-slate-50">취소</button>
-                  </div>
-                </div>
-              )}
-
-              {transcribing && (
-                <div className="border border-slate-200 rounded-xl p-5">
-                  <div className="flex items-center gap-2 mb-2 text-sm text-blue-600 font-medium">
-                    <span className="inline-block w-4 h-4 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin" />
-                    {progress?.msg || "변환 중..."}
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-600 transition-all" style={{ width: `${progress?.pct || 0}%` }} />
-                  </div>
-                  <p className="text-xs text-slate-400 mt-2">긴 녹음은 조각으로 나눠 변환합니다. 창을 닫지 마세요.</p>
-                </div>
-              )}
-
-              {text && !transcribing && (
-                <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="변환된 내용을 확인·수정하세요" className="w-full h-40 p-4 border border-slate-300 rounded-xl resize-none text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 text-slate-800" />
-              )}
-            </div>
+            </label>
           )}
 
           {/* 회의 정보 */}

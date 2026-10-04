@@ -61,7 +61,7 @@ Kbuzz 링크: ${kbuzzUrl}
 
     // Claude 스트리밍
     const stream = await client.messages.stream({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: 1500,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],

@@ -35,8 +35,8 @@ export async function POST(request: Request) {
       .join("\n\n");
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4096,
+      model: "claude-sonnet-5",
+      max_tokens: 8192,
       system: `당신은 한국 법률 전문가입니다. 계약서의 모든 조항을 검토하여 공정하게 수정해주세요.
 반드시 유효한 JSON만 출력하세요. 마크다운 코드블록(백틱)으로 감싸지 마세요.
 
@@ -64,7 +64,7 @@ fixedClauses 배열의 순서와 개수는 입력 조항과 동일해야 합니�
     });
 
     const responseText =
-      message.content[0].type === "text" ? message.content[0].text : "";
+      message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
     const result = JSON.parse(extractJSON(responseText));
 
     return Response.json(result);

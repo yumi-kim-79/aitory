@@ -158,7 +158,7 @@ content 요건: 1500자 이상 마크다운, ## 소제목 4개+, 각 2~3단락, 
 excerpt는 140자 이내.${linkInstruction}`;
 
   const res = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: 'claude-sonnet-5',
     max_tokens: 2500,
     messages: [{ role: 'user', content: prompt }],
   });

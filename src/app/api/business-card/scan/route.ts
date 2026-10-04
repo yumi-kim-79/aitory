@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       const base64 = buffer.toString("base64");
 
       const message = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5",
         max_tokens: 1500,
         messages: [
           {
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
         ],
       });
 
-      const responseText = message.content[0].type === "text" ? message.content[0].text : "";
+      const responseText = message.content.map((b) => (b.type === "text" ? b.text : "")).join("\n");
       try {
         const parsed = JSON.parse(extractJSON(responseText));
         parsed._imageData = `data:${mediaType};base64,${base64}`;
