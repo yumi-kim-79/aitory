@@ -1,10 +1,30 @@
 import Link from "next/link";
+import BuyButton from "./BuyButton";
 
-// 이용권 판매 채널 URL (스마트스토어 등). 준비되면 여기에 입력하세요.
-const STORE_URL = "";
+/* ────────────────────────────────────────────────────────────
+   이용권 판매 채널 주소 (스마트스토어 상품 페이지)
+
+   여기에 주소를 넣으면 "이용권 구매" 버튼이 새 탭으로 그 상품을 엽니다.
+   비워두면 아래 "구매 & 등록 방법"(#how) 으로 스크롤만 합니다.
+
+   상품별 주소를 쓰세요. 스토어 홈으로 보내면 방문자가
+   9,900원짜리와 29,900원짜리 중 뭘 사야 하는지 다시 찾아야 합니다.
+
+   예) https://smartstore.naver.com/내스토어/products/1234567890
+
+   코드를 고치지 않고 Vercel 환경변수로 바꿀 수도 있습니다.
+   (환경변수를 바꾼 뒤에는 재배포해야 반영됩니다)
+     NEXT_PUBLIC_STORE_URL_STARTER
+     NEXT_PUBLIC_STORE_URL_PRO
+   ──────────────────────────────────────────────────────────── */
+const STORE_URL: Record<string, string> = {
+  starter: process.env.NEXT_PUBLIC_STORE_URL_STARTER || "",
+  pro: process.env.NEXT_PUBLIC_STORE_URL_PRO || "",
+};
 
 const plans = [
   {
+    id: "free",
     name: "무료 체험",
     price: "0원",
     period: "",
@@ -17,6 +37,7 @@ const plans = [
     highlight: false,
   },
   {
+    id: "starter",
     name: "스타터 이용권",
     price: "9,900원",
     period: "",
@@ -28,6 +49,7 @@ const plans = [
     highlight: true,
   },
   {
+    id: "pro",
     name: "프로 이용권",
     price: "29,900원",
     period: "",
@@ -88,26 +110,12 @@ export default function PricingPage() {
                 >
                   {plan.cta}
                 </Link>
-              ) : STORE_URL ? (
-                <a
-                  href={STORE_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`block text-center py-3 rounded-xl font-semibold transition-colors ${
-                    plan.highlight ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-900 text-white hover:bg-slate-800"
-                  }`}
-                >
-                  {plan.cta}
-                </a>
               ) : (
-                <a
-                  href="#how"
-                  className={`block text-center py-3 rounded-xl font-semibold transition-colors ${
-                    plan.highlight ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-slate-900 text-white hover:bg-slate-800"
-                  }`}
-                >
-                  {plan.cta}
-                </a>
+                <BuyButton
+                  cta={plan.cta}
+                  storeUrl={STORE_URL[plan.id] || ""}
+                  highlight={plan.highlight}
+                />
               )}
             </div>
           ))}

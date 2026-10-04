@@ -4,13 +4,14 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { nextPath } from "@/lib/nextPath";
 
 export default function SignupPage() {
   const router = useRouter();
   const { user, signUp, signInWithGoogle } = useAuth();
 
   useEffect(() => {
-    if (user) router.push("/");
+    if (user) router.push(nextPath());
   }, [user, router]);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -30,7 +31,7 @@ export default function SignupPage() {
     setLoading(true);
     try {
       await signUp(email, password, name);
-      router.push("/");
+      router.push(nextPath());
     } catch (err) {
       setError(err instanceof Error ? err.message : "회원가입 실패");
     } finally {

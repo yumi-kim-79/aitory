@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { nextPath } from "@/lib/nextPath";
 
 export default function SigninPage() {
   const router = useRouter();
@@ -11,7 +12,7 @@ export default function SigninPage() {
 
   // 이미 로그인 상태면 홈으로 이동
   useEffect(() => {
-    if (user) router.push("/");
+    if (user) router.push(nextPath());
   }, [user, router]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +26,7 @@ export default function SigninPage() {
     setLoading(true);
     try {
       await signIn(email, password);
-      router.push("/");
+      router.push(nextPath());
     } catch (err) {
       setError(err instanceof Error ? err.message : "로그인 실패");
     } finally {
